@@ -4,7 +4,7 @@ A collaborative canvas for AI reasoning. Wraps the `claude` CLI to capture exten
 
 > **Why this exists.** When Claude thinks through a hard problem, the reasoning usually vanishes the moment you see the answer. Branch lets you see the thinking, rewind to any step, and explore alternative paths — without regenerating from scratch.
 
-![viewer screenshot placeholder](https://via.placeholder.com/800x400.png?text=Branch+Viewer)
+![Branch viewer screenshot](https://raw.githubusercontent.com/84yk8btb9f-prog/branch-ai/main/assets/viewer.png)
 
 ## What you get
 
