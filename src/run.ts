@@ -1,17 +1,68 @@
 import { nanoid } from "nanoid";
-import { runClaude } from "./claude.js";
+import { runClaude, runClaudeStream } from "./claude.js";
+import type { AllowedModel } from "./claude.js";
 import { parseThinking } from "./parser.js";
 import { structuredParse } from "./structured-parser.js";
 import { saveSession } from "./session.js";
 import type { Tree, Node } from "./tree.js";
 
-function countNodes(n: Node): number {
+export function countNodes(n: Node): number {
   return 1 + n.children.reduce((a: number, c: Node) => a + countNodes(c), 0);
+}
+
+export async function* branchStream(
+  prompt: string,
+  opts: { model?: AllowedModel } = {}
+): AsyncGenerator<
+  | { type: "start"; sessionId: string }
+  | { type: "thinking_delta"; text: string }
+  | { type: "text_delta"; text: string }
+  | { type: "tree_update"; root: Node }
+  | { type: "done"; tree: Tree }
+> {
+  const model = opts.model ?? "sonnet";
+  const sessionId = nanoid(10);
+  yield { type: "start", sessionId };
+
+  let fullThinking = "";
+  let fullText = "";
+
+  for await (const ev of runClaudeStream({ prompt, model })) {
+    if (ev.type === "thinking_delta") {
+      const prevLen = fullThinking.length;
+      fullThinking += ev.text;
+      yield { type: "thinking_delta", text: ev.text };
+      // Emit a tree_update approximately every 200 chars of new thinking
+      const crossedBoundary = Math.floor(fullThinking.length / 200) > Math.floor(prevLen / 200);
+      if (crossedBoundary) {
+        const root = parseThinking(fullThinking);
+        yield { type: "tree_update", root };
+      }
+    } else if (ev.type === "text_delta") {
+      fullText += ev.text;
+      yield { type: "text_delta", text: ev.text };
+    } else if (ev.type === "done") {
+      fullThinking = ev.full.thinking;
+      fullText = ev.full.finalText;
+    }
+  }
+
+  const root = parseThinking(fullThinking);
+  const tree: Tree = {
+    sessionId,
+    prompt,
+    model,
+    createdAt: new Date().toISOString(),
+    root,
+    finalText: fullText,
+  };
+  await saveSession(tree);
+  yield { type: "done", tree };
 }
 
 export async function branch(
   prompt: string,
-  opts: { model?: "sonnet" | "opus" | "haiku"; structured?: boolean } = {}
+  opts: { model?: AllowedModel; structured?: boolean } = {}
 ): Promise<Tree> {
   const model = opts.model ?? "sonnet";
   const useStructured = opts.structured !== false; // default ON

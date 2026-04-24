@@ -1,8 +1,10 @@
-export { branch } from "./run.js";
+export { branch, branchStream, countNodes } from "./run.js";
+export { runClaude, runClaudeStream } from "./claude.js";
+export type { AllowedModel, StreamEvent } from "./claude.js";
 export { forkNode, buildForkPrompt } from "./fork.js";
 export { buildInjectPrompt } from "./inject.js";
 export { parseThinking } from "./parser.js";
 export { structuredParse } from "./structured-parser.js";
 export { saveSession, loadSession } from "./session.js";
 export type { Tree, Node } from "./tree.js";
-export const BRANCH_VERSION = "0.1.5";
+export const BRANCH_VERSION = "0.2.0";

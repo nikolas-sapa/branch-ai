@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { branch } from "./index.js";
+import { branch, branchStream, countNodes as countNodesLib } from "./index.js";
 import { sessionPath, loadSession } from "./session.js";
 import { toMarkdown, toMermaid } from "./export.js";
 import { spawn } from "node:child_process";
@@ -69,7 +69,7 @@ async function startViewer(viewerDir: string, url: string): Promise<boolean> {
 }
 
 function countNodes(n: any): number {
-  return 1 + n.children.reduce((a: number, c: any) => a + countNodes(c), 0);
+  return countNodesLib(n);
 }
 
 async function runExport(args: string[]) {
@@ -120,22 +120,68 @@ async function runList(args: string[]) {
 
 async function runDefault(args: string[]) {
   const skipOpen = args.includes("--no-open");
+  const useStream = args.includes("--stream");
   let model: "sonnet" | "opus" | "haiku" = "sonnet";
   const prompt: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === "--model") { model = args[++i] as any; continue; }
     if (a === "--no-open") continue;
+    if (a === "--stream") continue;
     prompt.push(a);
   }
   if (prompt.length === 0) {
     console.error(`Usage:
-  branch [--model sonnet|opus|haiku] [--no-open] "your prompt"
+  branch [--model sonnet|opus|haiku] [--no-open] [--stream] "your prompt"
   branch list [--limit N]
   branch export <sessionId> [--format markdown|mermaid]`);
     process.exit(1);
   }
   const joined = prompt.join(" ");
+
+  if (useStream) {
+    console.log(`Thinking with ${model} (streaming)...`);
+    let nodeCount = 0;
+    let sessionId = "";
+    let finalTree: any = null;
+    for await (const ev of branchStream(joined, { model })) {
+      if (ev.type === "start") {
+        sessionId = ev.sessionId;
+        console.log(`  Session: ${ev.sessionId}`);
+      }
+      if (ev.type === "tree_update") {
+        const n = countNodes(ev.root);
+        if (n !== nodeCount) {
+          nodeCount = n;
+          process.stdout.write(`\r  Nodes: ${n}   `);
+        }
+      }
+      if (ev.type === "done") {
+        finalTree = ev.tree;
+      }
+    }
+    process.stdout.write("\n");
+    if (finalTree) {
+      const url = `${VIEWER_URL}/t/${finalTree.sessionId}`;
+      console.log(`\nDone.`);
+      console.log(`  Session: ${finalTree.sessionId}`);
+      console.log(`  Nodes:   ${countNodes(finalTree.root)}`);
+      console.log(`  File:    ${sessionPath(finalTree.sessionId)}`);
+      console.log(`  View:    ${url}`);
+      let reachable = await viewerReachable(VIEWER_URL);
+      if (!reachable) {
+        const viewerDir = await findViewerDir();
+        if (viewerDir) reachable = await startViewer(viewerDir, VIEWER_URL);
+      }
+      if (!reachable) {
+        console.log(`\n(Viewer isn't running and couldn't auto-start. Start manually: cd viewer && npm run dev)`);
+      } else if (!skipOpen) {
+        openInBrowser(url);
+      }
+    }
+    return;
+  }
+
   console.log(`Thinking with ${model}...`);
   const tree = await branch(joined, { model });
   const url = `${VIEWER_URL}/t/${tree.sessionId}`;
