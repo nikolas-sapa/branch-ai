@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.branch/
+viewer/.next/
+viewer/node_modules/
+.env
+.env.local
+*.log
