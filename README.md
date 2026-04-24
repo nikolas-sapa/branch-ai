@@ -97,6 +97,13 @@ branch-ai/
 └── dist/          published build
 ```
 
+## Security
+
+- **Viewer has no authentication.** It is designed to run on `localhost` only. Do not expose the viewer port to a network or the public internet — any host on the same network could call the `/api/fork` and `/api/inject` routes and trigger `claude` subprocesses against your subscription.
+- The `branch-mcp` server binds to stdio, so only the parent Claude Code process can talk to it. Untrusted transports cannot connect.
+- Session IDs are validated with `^[a-zA-Z0-9_-]+$` before being used in file-system paths, preventing path traversal.
+- Prompts are passed as positional argv items to `claude` (not shell-interpolated), so they are not subject to shell injection.
+
 ## Contributing
 
 PRs welcome. Please run `npm test` before submitting.
