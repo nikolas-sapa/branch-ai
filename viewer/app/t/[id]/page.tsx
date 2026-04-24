@@ -21,7 +21,7 @@ export default async function TreePage({ params }: { params: Promise<{ id: strin
         <div className="ml-6 text-sm text-neutral-500 truncate">{tree.prompt}</div>
         <div className="ml-auto text-xs text-neutral-400">{tree.model}</div>
       </header>
-      <TreeCanvas nodes={nodes} edges={edges} />
+      <TreeCanvas nodes={nodes} edges={edges} sessionId={id} />
     </main>
   );
 }
