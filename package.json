@@ -3,7 +3,10 @@
   "version": "0.0.1",
   "description": "Collaborative canvas for AI reasoning",
   "type": "module",
-  "bin": { "branch": "./dist/cli.js" },
+  "bin": {
+    "branch": "./dist/cli.js",
+    "branch-mcp": "./dist/mcp.js"
+  },
   "main": "./dist/index.js",
   "scripts": {
     "build": "tsc",
@@ -11,16 +14,19 @@
     "test:watch": "vitest",
     "dev": "tsx src/cli.ts"
   },
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "execa": "^9.5.0",
-    "zod": "^3.24.0",
-    "nanoid": "^5.0.0"
+    "nanoid": "^5.0.0",
+    "zod": "^3.24.0"
   },
   "devDependencies": {
-    "typescript": "^5.6.0",
+    "@types/node": "^22.9.0",
     "tsx": "^4.19.0",
-    "vitest": "^2.1.0",
-    "@types/node": "^22.9.0"
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
   }
 }
