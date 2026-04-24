@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { branch } from "./index.js";
-import { sessionPath } from "./session.js";
+import { sessionPath, loadSession } from "./session.js";
+import { toMarkdown, toMermaid } from "./export.js";
 
 const VIEWER_URL = process.env.BRANCH_VIEWER_URL ?? "http://localhost:7432";
 
@@ -16,19 +17,31 @@ async function viewerReachable(url: string): Promise<boolean> {
   }
 }
 
-async function main() {
-  const args = process.argv.slice(2);
+async function runExport(args: string[]) {
+  const sessionId = args[0];
+  if (!sessionId) {
+    console.error("Usage: branch export <sessionId> [--format markdown|mermaid]");
+    process.exit(1);
+  }
+  const formatIdx = args.indexOf("--format");
+  const format = formatIdx !== -1 ? args[formatIdx + 1] : "markdown";
+  const tree = await loadSession(sessionId);
+  if (format === "mermaid") {
+    console.log(toMermaid(tree));
+  } else {
+    console.log(toMarkdown(tree));
+  }
+}
+
+async function runDefault(args: string[]) {
   let model: "sonnet" | "opus" | "haiku" = "sonnet";
   const prompt: string[] = [];
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--model") {
-      model = args[++i] as any;
-    } else {
-      prompt.push(args[i]);
-    }
+    if (args[i] === "--model") model = args[++i] as any;
+    else prompt.push(args[i]);
   }
   if (prompt.length === 0) {
-    console.error('Usage: branch [--model sonnet|opus|haiku] "your prompt"');
+    console.error('Usage: branch [--model sonnet|opus|haiku] "your prompt"\n       branch export <sessionId> [--format markdown|mermaid]');
     process.exit(1);
   }
   const joined = prompt.join(" ");
@@ -40,7 +53,6 @@ async function main() {
   console.log(`  Nodes:   ${countNodes(tree.root)}`);
   console.log(`  File:    ${sessionPath(tree.sessionId)}`);
   console.log(`  View:    ${url}`);
-
   const reachable = await viewerReachable(VIEWER_URL);
   if (!reachable) {
     console.log(`\n(Viewer isn't running — start it with: git clone https://github.com/84yk8btb9f-prog/branch-ai && cd branch-ai && npm run viewer)`);
@@ -51,7 +63,13 @@ function countNodes(n: any): number {
   return 1 + n.children.reduce((a: number, c: any) => a + countNodes(c), 0);
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+async function main() {
+  const args = process.argv.slice(2);
+  if (args[0] === "export") {
+    await runExport(args.slice(1));
+  } else {
+    await runDefault(args);
+  }
+}
+
+main().catch((e) => { console.error(e); process.exit(1); });
