@@ -1,5 +1,4 @@
 import { TreeCanvas } from "@/components/TreeCanvas";
-import { layoutTree } from "@/lib/layout";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -13,7 +12,6 @@ async function loadTree(id: string) {
 export default async function TreePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const tree = await loadTree(id);
-  const { nodes, edges } = layoutTree(tree.root);
   return (
     <main>
       <header className="h-14 border-b border-neutral-200 bg-white flex items-center px-6">
@@ -21,7 +19,7 @@ export default async function TreePage({ params }: { params: Promise<{ id: strin
         <div className="ml-6 text-sm text-neutral-500 truncate">{tree.prompt}</div>
         <div className="ml-auto text-xs text-neutral-400">{tree.model}</div>
       </header>
-      <TreeCanvas nodes={nodes} edges={edges} sessionId={id} />
+      <TreeCanvas root={tree.root} sessionId={id} />
     </main>
   );
 }
