@@ -2,7 +2,7 @@
 import { branch } from "./index.js";
 import { sessionPath } from "./session.js";
 
-const VIEWER_URL = process.env.BRANCH_VIEWER_URL ?? "http://localhost:3000";
+const VIEWER_URL = process.env.BRANCH_VIEWER_URL ?? "http://localhost:7432";
 
 async function viewerReachable(url: string): Promise<boolean> {
   try {

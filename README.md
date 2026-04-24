@@ -30,7 +30,7 @@ npm install -g branch-ai
 # Terminal 1 — start the viewer
 git clone https://github.com/84yk8btb9f-prog/branch-ai && cd branch-ai
 npm run viewer
-# viewer runs on http://localhost:3000 (or 3001 if 3000 busy)
+# viewer runs on http://localhost:7432
 
 # Terminal 2 — run the CLI
 branch "Should I deploy on Friday afternoon? Think carefully through the tradeoffs"
@@ -51,7 +51,7 @@ Sessions are saved to `~/.branch/sessions/<id>.json`. The viewer reads them from
 
 ### Environment variables
 
-- `BRANCH_VIEWER_URL` — override where the CLI prints the viewer link. Default: `http://localhost:3000`.
+- `BRANCH_VIEWER_URL` — override where the CLI prints the viewer link. Default: `http://localhost:7432`.
 
 ## MCP server — use Branch from inside Claude Code
 

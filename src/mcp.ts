@@ -12,7 +12,7 @@ import { execSync } from "node:child_process";
 import { branch } from "./index.js";
 import { sessionPath } from "./session.js";
 
-const VIEWER_URL = process.env.BRANCH_VIEWER_URL ?? "http://localhost:3000";
+const VIEWER_URL = process.env.BRANCH_VIEWER_URL ?? "http://localhost:7432";
 const MAX_PROMPT_LENGTH = 10_000;
 const FINAL_TEXT_PREVIEW = 2_000;
 const CLAUDE_TIMEOUT_MS = 180_000;
@@ -61,7 +61,7 @@ function countNodes(n: any): number {
 }
 
 const server = new Server(
-  { name: "branch", version: "0.1.3" },
+  { name: "branch", version: "0.1.4" },
   { capabilities: { tools: {} } }
 );
 
