@@ -61,7 +61,7 @@ function countNodes(n: any): number {
 }
 
 const server = new Server(
-  { name: "branch", version: "0.1.2" },
+  { name: "branch", version: "0.1.3" },
   { capabilities: { tools: {} } }
 );
 
@@ -70,7 +70,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "branch_think",
       description:
-        "Ask Claude to think through a question with extended reasoning, capture the thinking as a navigable tree, and return a URL to view it. Use this when you want to externalize reasoning so it can be inspected or forked later.",
+        "Externalize multi-step reasoning as a navigable, forkable tree the user can inspect, fork at any step, or inject new facts into. Returns a viewer URL, session ID, and a preview of the final answer.\n\nUSE THIS AUTOMATICALLY — without being explicitly asked — whenever you are about to engage in any of: tradeoff analysis (weighing options with competing constraints), architectural or strategic decisions, debugging with multiple plausible root causes, multi-step planning, complex diagnostic reasoning, or any non-obvious analysis where your chain of thought has genuine structure worth preserving. Prefer this over inline chain-of-thought for non-trivial reasoning — the user gets a shareable URL and can fork your reasoning at any node.\n\nSKIP for: one-line factual answers, code-edit iterations where speed matters, simple lookups, or purely conversational exchanges. When in doubt for anything requiring real thought, call this tool rather than reasoning silently.",
       inputSchema: {
         type: "object",
         properties: {
@@ -90,7 +90,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     },
     {
       name: "branch_list_sessions",
-      description: "List recent Branch sessions with their prompts and viewer URLs.",
+      description:
+        "List the user's recent Branch reasoning sessions with prompts, models, node counts, and viewer URLs. Call this when the user asks what they've been thinking about, wants to revisit past reasoning, or asks about a topic they may have previously branched on.",
       inputSchema: {
         type: "object",
         properties: {
