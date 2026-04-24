@@ -28,7 +28,7 @@ npm install -g branch-ai
 
 ```bash
 # Terminal 1 — start the viewer
-git clone https://github.com/nikolassapalidis/branch-ai && cd branch-ai
+git clone https://github.com/84yk8btb9f-prog/branch-ai && cd branch-ai
 npm run viewer
 # viewer runs on http://localhost:3000 (or 3001 if 3000 busy)
 

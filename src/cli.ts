@@ -43,7 +43,7 @@ async function main() {
 
   const reachable = await viewerReachable(VIEWER_URL);
   if (!reachable) {
-    console.log(`\n(Viewer isn't running — start it with: git clone https://github.com/nikolassapalidis/branch-ai && cd branch-ai && npm run viewer)`);
+    console.log(`\n(Viewer isn't running — start it with: git clone https://github.com/84yk8btb9f-prog/branch-ai && cd branch-ai && npm run viewer)`);
   }
 }
 
