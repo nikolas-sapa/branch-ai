@@ -4,6 +4,18 @@ import { sessionPath } from "./session.js";
 
 const VIEWER_URL = process.env.BRANCH_VIEWER_URL ?? "http://localhost:3000";
 
+async function viewerReachable(url: string): Promise<boolean> {
+  try {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 250);
+    const res = await fetch(url, { signal: ctl.signal });
+    clearTimeout(t);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
   let model: "sonnet" | "opus" | "haiku" = "sonnet";
@@ -16,7 +28,7 @@ async function main() {
     }
   }
   if (prompt.length === 0) {
-    console.error("Usage: branch [--model sonnet|opus|haiku] \"your prompt\"");
+    console.error('Usage: branch [--model sonnet|opus|haiku] "your prompt"');
     process.exit(1);
   }
   const joined = prompt.join(" ");
@@ -28,6 +40,11 @@ async function main() {
   console.log(`  Nodes:   ${countNodes(tree.root)}`);
   console.log(`  File:    ${sessionPath(tree.sessionId)}`);
   console.log(`  View:    ${url}`);
+
+  const reachable = await viewerReachable(VIEWER_URL);
+  if (!reachable) {
+    console.log(`\n(Viewer isn't running — start it with: git clone https://github.com/nikolassapalidis/branch-ai && cd branch-ai && npm run viewer)`);
+  }
 }
 
 function countNodes(n: any): number {

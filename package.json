@@ -1,21 +1,50 @@
 {
-  "name": "branch",
-  "version": "0.0.1",
-  "description": "Collaborative canvas for AI reasoning",
+  "name": "branch-ai",
+  "version": "0.1.0",
+  "description": "A collaborative canvas for AI reasoning. Wraps the Claude Code CLI to capture extended thinking as a navigable, forkable tree.",
   "type": "module",
   "bin": {
     "branch": "./dist/cli.js",
     "branch-mcp": "./dist/mcp.js"
   },
   "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && chmod +x dist/cli.js && chmod +x dist/mcp.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "dev": "tsx src/cli.ts"
+    "viewer": "cd viewer && npm install && npm run dev",
+    "prepublishOnly": "npm run build && npm test"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nikolassapalidis/branch-ai.git"
+  },
+  "bugs": "https://github.com/nikolassapalidis/branch-ai/issues",
+  "homepage": "https://github.com/nikolassapalidis/branch-ai#readme",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "anthropic",
+    "mcp",
+    "reasoning",
+    "extended-thinking",
+    "ai-agents",
+    "llm",
+    "cli"
+  ],
+  "author": "Nikolas Sapalidis",
+  "license": "MIT",
   "engines": {
-    "node": ">=24"
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
