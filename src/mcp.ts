@@ -61,7 +61,7 @@ function countNodes(n: any): number {
 }
 
 const server = new Server(
-  { name: "branch", version: "0.1.5" },
+  { name: "branch", version: "0.1.6" },
   { capabilities: { tools: {} } }
 );
 
