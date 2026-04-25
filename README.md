@@ -61,7 +61,7 @@ Add this to `~/.claude.json` under `mcpServers`:
 "branch": {
   "type": "stdio",
   "command": "branch-mcp",
-  "env": { "BRANCH_VIEWER_URL": "http://localhost:3001" }
+  "env": { "BRANCH_VIEWER_URL": "http://localhost:7432" }
 }
 ```
 
