@@ -1,6 +1,7 @@
 import { TreeCanvas } from "@/components/TreeCanvas";
 import { FinalTextPanel } from "@/components/FinalTextPanel";
 import { SessionHeaderActions } from "@/components/SessionHeaderActions";
+import { DecisionPanel } from "@/components/DecisionPanel";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -62,6 +63,7 @@ export default async function TreePage({ params }: { params: Promise<{ id: strin
           {tree.finalText && <FinalTextPanel finalText={tree.finalText} />}
         </div>
       </header>
+      {tree.decision && <DecisionPanel decision={tree.decision} />}
       <div className="flex-1 min-h-0 relative">
         <TreeCanvas root={tree.root} sessionId={id} />
       </div>

@@ -9,6 +9,7 @@ import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import * as readline from "node:readline/promises";
 
 const VIEWER_URL = process.env.BRANCH_VIEWER_URL ?? "http://localhost:7432";
 
@@ -147,8 +148,15 @@ async function runList(args: string[]) {
     const pin = t.pinned ? " \x1b[33m★\x1b[0m" : "";
     const inc = t.incomplete ? " \x1b[33m(incomplete)\x1b[0m" : "";
     const tags = t.tags && t.tags.length > 0 ? `  \x1b[36m[${t.tags.join(", ")}]\x1b[0m` : "";
-    console.log(`\n  ${t.sessionId}${pin}${inc}  ${t.model}  ${nodes} nodes  ${when}${tags}`);
+    const decided = t.decision ? " \x1b[32m[decided]\x1b[0m" : "";
+    console.log(`\n  ${t.sessionId}${pin}${inc}${decided}  ${t.model}  ${nodes} nodes  ${when}${tags}`);
     console.log(`    ${promptPreview}`);
+    if (t.decision) {
+      const conclusion = t.decision.conclusion.length > 80
+        ? t.decision.conclusion.slice(0, 80) + "…"
+        : t.decision.conclusion;
+      console.log(`    \x1b[32m→ ${conclusion}\x1b[0m`);
+    }
     console.log(`    ${VIEWER_URL}/t/${t.sessionId}`);
   }
 }
@@ -196,7 +204,9 @@ async function runSearch(args: string[]) {
     try {
       const raw = await readFile(join(dir, f), "utf8");
       const t = JSON.parse(raw);
-      const haystack = [t.prompt ?? "", t.finalText ?? "", ...flattenContent(t.root)].join(" ");
+      // Include decision conclusion in haystack
+      const decisionText = t.decision?.conclusion ?? "";
+      const haystack = [t.prompt ?? "", t.finalText ?? "", decisionText, ...flattenContent(t.root)].join(" ");
       const s = scoreText(haystack);
       if (s > 0) matches.push({ t, score: s });
     } catch { /* skip */ }
@@ -243,9 +253,127 @@ async function runPin(args: string[], pinned: boolean) {
   console.log(`${pinned ? "Pinned" : "Unpinned"}: ${sessionId}`);
 }
 
+async function runDecide(args: string[]) {
+  const sessionId = args[0];
+  if (!sessionId) {
+    console.error("Usage: branch decide <sessionId> [--conclusion \"...\" --rejected \"X;Y\" --confidence low|medium|high --revisit-if \"...\"]");
+    process.exit(1);
+  }
+
+  // Parse non-interactive flags
+  const getFlag = (name: string): string | undefined => {
+    const idx = args.indexOf(name);
+    return idx !== -1 ? args[idx + 1] : undefined;
+  };
+
+  const flagConclusion = getFlag("--conclusion");
+  const flagRejected = getFlag("--rejected");
+  const flagConfidence = getFlag("--confidence") as "low" | "medium" | "high" | undefined;
+  const flagRevisitIf = getFlag("--revisit-if");
+
+  let conclusion: string;
+  let rejected: string[];
+  let confidence: "low" | "medium" | "high";
+  let revisitIf: string;
+
+  const nonInteractive = !!(flagConclusion && flagConfidence && flagRevisitIf);
+
+  if (nonInteractive) {
+    conclusion = flagConclusion!;
+    rejected = flagRejected ? flagRejected.split(";").map((s) => s.trim()).filter(Boolean) : [];
+    confidence = flagConfidence!;
+    revisitIf = flagRevisitIf!;
+  } else {
+    // Interactive prompts
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    conclusion = (await rl.question("Conclusion (what did you decide?): ")).trim();
+    const rejectedRaw = (await rl.question("Rejected alternatives (semicolon-separated): ")).trim();
+    rejected = rejectedRaw ? rejectedRaw.split(";").map((s) => s.trim()).filter(Boolean) : [];
+    const confRaw = (await rl.question("Confidence (low/medium/high): ")).trim().toLowerCase();
+    confidence = (["low", "medium", "high"].includes(confRaw) ? confRaw : "medium") as "low" | "medium" | "high";
+    revisitIf = (await rl.question("Revisit if (what changes the answer?): ")).trim();
+    rl.close();
+  }
+
+  if (!conclusion) {
+    console.error("Conclusion is required.");
+    process.exit(1);
+  }
+
+  const tree = await loadSession(sessionId);
+  (tree as any).decision = {
+    conclusion,
+    rejected,
+    confidence,
+    revisitIf,
+    decidedAt: new Date().toISOString(),
+  };
+  await saveSession(tree);
+
+  console.log(`\nDecision recorded.`);
+  console.log(`  View: ${VIEWER_URL}/t/${sessionId}#decision`);
+}
+
+async function runDecisions(args: string[]) {
+  const limitIdx = args.indexOf("--limit");
+  const limit = limitIdx !== -1 ? parseInt(args[limitIdx + 1], 10) || 20 : 20;
+  const dir = join(homedir(), ".branch", "sessions");
+  let files: string[] = [];
+  try { files = await readdir(dir); } catch { files = []; }
+
+  const sessions: Array<{ t: any }> = [];
+  for (const f of files) {
+    if (!f.endsWith(".json")) continue;
+    try {
+      const raw = await readFile(join(dir, f), "utf8");
+      const t = JSON.parse(raw);
+      if (t.decision) sessions.push({ t });
+    } catch { /* skip */ }
+  }
+
+  // Sort by decidedAt descending
+  sessions.sort((a, b) => {
+    const da = new Date(a.t.decision.decidedAt).getTime();
+    const db = new Date(b.t.decision.decidedAt).getTime();
+    return db - da;
+  });
+
+  if (sessions.length === 0) {
+    console.log("No decisions recorded yet. Run: branch decide <sessionId>");
+    return;
+  }
+
+  const CONF_COLOR: Record<string, string> = {
+    high: "\x1b[32m",    // green
+    medium: "\x1b[33m",  // amber
+    low: "\x1b[31m",     // red
+  };
+  const RESET = "\x1b[0m";
+
+  for (const { t } of sessions.slice(0, limit)) {
+    const when = new Date(t.decision.decidedAt).toLocaleString();
+    const confColor = CONF_COLOR[t.decision.confidence] ?? "";
+    const conclusionPreview = t.decision.conclusion.length > 80
+      ? t.decision.conclusion.slice(0, 80) + "…"
+      : t.decision.conclusion;
+    const promptPreview = t.prompt.length > 60 ? t.prompt.slice(0, 60) + "…" : t.prompt;
+    console.log(`\n  ${t.sessionId}  ${when}`);
+    console.log(`    \x1b[1m${conclusionPreview}\x1b[0m`);
+    console.log(`    confidence: ${confColor}${t.decision.confidence}${RESET}  |  prompt: ${promptPreview}`);
+    if (t.decision.rejected && t.decision.rejected.length > 0) {
+      console.log(`    rejected: ${t.decision.rejected.join("; ")}`);
+    }
+    if (t.decision.revisitIf) {
+      console.log(`    revisit if: \x1b[2m${t.decision.revisitIf}\x1b[0m`);
+    }
+    console.log(`    ${VIEWER_URL}/t/${t.sessionId}#decision`);
+  }
+}
+
 async function runDefault(args: string[]) {
   const skipOpen = args.includes("--no-open");
   const noStream = args.includes("--no-stream");
+  const skipShare = args.includes("--local");
   let model: "sonnet" | "opus" | "haiku" = "sonnet";
   const prompt: string[] = [];
   for (let i = 0; i < args.length; i++) {
@@ -253,21 +381,25 @@ async function runDefault(args: string[]) {
     if (a === "--model") { model = args[++i] as any; continue; }
     if (a === "--no-open") continue;
     if (a === "--no-stream") continue;
+    if (a === "--local") continue;
     prompt.push(a);
   }
   if (prompt.length === 0) {
     console.error(`Usage:
-  branch [--model sonnet|opus|haiku] [--no-open] [--no-stream] "your prompt"
+  branch [--model sonnet|opus|haiku] [--no-open] [--no-stream] [--local] "your prompt"
   branch list [--limit N]
   branch export <sessionId> [--format markdown|mermaid]
   branch diff <sessionA> <sessionB>
-  branch share <sessionId>`);
+  branch share <sessionId>
+  branch decide <sessionId> [--conclusion "..." --rejected "X;Y" --confidence high --revisit-if "..."]
+  branch decisions [--limit N]
+  branch search <query>`);
     process.exit(1);
   }
   const joined = prompt.join(" ");
 
   if (!noStream) {
-    console.log(`Thinking with ${model} (streaming)...`);
+    console.log(`Thinking with ${model} (live reasoning stream)...`);
     let nodeCount = 0;
     let finalTree: any = null;
     for await (const ev of branchStream(joined, { model })) {
@@ -278,7 +410,7 @@ async function runDefault(args: string[]) {
         const n = countNodes(ev.root);
         if (n !== nodeCount) {
           nodeCount = n;
-          process.stdout.write(`\r  Nodes: ${n}   `);
+          process.stdout.write(`\r  Reasoning steps: ${n}   `);
         }
       }
       if (ev.type === "done") {
@@ -293,6 +425,13 @@ async function runDefault(args: string[]) {
       console.log(`  Nodes:   ${countNodes(finalTree.root)}`);
       console.log(`  File:    ${sessionPath(finalTree.sessionId)}`);
       console.log(`  View:    ${url}`);
+      // Auto-share if token is set and --local not passed
+      if (!skipShare && process.env.BLOB_READ_WRITE_TOKEN) {
+        try {
+          const publicUrl = await uploadSession(finalTree);
+          console.log(`  Public:  ${publicUrl}`);
+        } catch { /* silent — user already has local URL */ }
+      }
       let reachable = await viewerReachable(VIEWER_URL);
       if (!reachable) {
         const viewerDir = await findViewerDir();
@@ -316,6 +455,13 @@ async function runDefault(args: string[]) {
   console.log(`  Nodes:   ${countNodes(tree.root)}`);
   console.log(`  File:    ${sessionPath(tree.sessionId)}`);
   console.log(`  View:    ${url}`);
+  // Auto-share if token is set and --local not passed
+  if (!skipShare && process.env.BLOB_READ_WRITE_TOKEN) {
+    try {
+      const publicUrl = await uploadSession(tree);
+      console.log(`  Public:  ${publicUrl}`);
+    } catch { /* silent — user already has local URL */ }
+  }
 
   let reachable = await viewerReachable(VIEWER_URL);
   if (!reachable) {
@@ -350,6 +496,8 @@ async function main() {
   if (args[0] === "tag") return runTag(args.slice(1));
   if (args[0] === "pin") return runPin(args.slice(1), true);
   if (args[0] === "unpin") return runPin(args.slice(1), false);
+  if (args[0] === "decide") return runDecide(args.slice(1));
+  if (args[0] === "decisions") return runDecisions(args.slice(1));
   return runDefault(args);
 }
 

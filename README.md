@@ -1,16 +1,17 @@
 # branch-ai
 
-A collaborative canvas for AI reasoning. Wraps the `claude` CLI to capture extended thinking as a navigable, forkable tree — you can walk backward through Claude's reasoning, fork it with a different prior at any node, or inject a new fact mid-thought and watch the cascade.
+A collaborative canvas for AI reasoning. Wraps the `claude` CLI to capture Claude's reasoning steps as a navigable tree — you can walk backward through the thinking, explore alternative paths from any point, or add a new fact mid-thought and watch how the conclusion changes.
 
-> **Why this exists.** When Claude thinks through a hard problem, the reasoning usually vanishes the moment you see the answer. Branch lets you see the thinking, rewind to any step, and explore alternative paths — without regenerating from scratch.
+> **Why this exists.** When Claude works through a hard problem, the reasoning vanishes the moment you see the answer. Branch preserves every reasoning step, lets you rewind to any point, and explore "what if I changed this assumption?" — without starting over.
 
 ![Branch viewer screenshot](https://raw.githubusercontent.com/84yk8btb9f-prog/branch-ai/main/assets/viewer.png)
 
 ## What you get
 
-- **`branch "prompt"`** — CLI that captures reasoning as a tree
-- **`branch-mcp`** — MCP server so Claude Code agents can externalize their own reasoning
-- **Web viewer** — React Flow canvas where you click any node to fork or inject a fact
+- **`branch "prompt"`** — CLI that captures reasoning as a navigable tree
+- **`branch-mcp`** — MCP server (Model Context Protocol — the way Claude Code talks to external tools) so Claude Code agents can externalize their own reasoning
+- **Web viewer** — React Flow canvas where you click any node to explore an alternative path or add a new fact
+- **`branch decide`** — record what you decided, what you rejected, and what would change the answer later
 
 ## Requirements
 
@@ -34,24 +35,55 @@ npm run viewer
 
 # Terminal 2 — run the CLI
 branch "Should I deploy on Friday afternoon? Think carefully through the tradeoffs"
-# prints a session URL — open it
+# opens the reasoning tree in your browser automatically
 ```
 
 ## CLI
 
 ```
-branch [--model sonnet|opus|haiku] "your prompt"
+branch [--model sonnet|opus|haiku] [--local] "your prompt"
 ```
 
 - Default model: `sonnet` (fastest, available on Pro)
 - Use `--model opus` for harder reasoning problems
 - Use `--model haiku` for quick drafts
+- Use `--local` to skip auto-sharing even when `BLOB_READ_WRITE_TOKEN` is set
 
 Sessions are saved to `~/.branch/sessions/<id>.json`. The viewer reads them from there.
+
+### All commands
+
+| Command | What it does |
+|---|---|
+| `branch "prompt"` | Run a prompt and open the reasoning tree |
+| `branch list` | Recent sessions |
+| `branch search <query>` | Search across all sessions including decision conclusions |
+| `branch share <id>` | Upload a session to Vercel Blob for sharing |
+| `branch decide <id>` | Record a decision anchor for a session |
+| `branch decisions` | List all sessions with recorded decisions |
+| `branch export <id>` | Export as Markdown or Mermaid |
+| `branch diff <a> <b>` | Compare two sessions |
+| `branch tag <id> <tag>` | Tag a session |
+| `branch pin <id>` | Pin a session to the top of the list |
 
 ### Environment variables
 
 - `BRANCH_VIEWER_URL` — override where the CLI prints the viewer link. Default: `http://localhost:7432`.
+- `BLOB_READ_WRITE_TOKEN` — when set, `branch "prompt"` automatically uploads each session so you get a public URL alongside the local one. Use `--local` to opt out per-run.
+
+## Decision anchors
+
+After a reasoning session, record what you actually decided:
+
+```bash
+branch decide <sessionId>
+# interactive prompts: conclusion, rejected alternatives, confidence, revisit trigger
+
+# or non-interactive:
+branch decide <id> --conclusion "Build modular monolith" --rejected "Microservices;Mongo migration" --confidence high --revisit-if "Team grows past 15 engineers"
+```
+
+Decisions show up in `branch list` with a `[decided]` marker and the conclusion line. `branch decisions` shows only settled questions. The viewer renders a decision card at the top of the session.
 
 ## MCP server — use Branch from inside Claude Code
 
@@ -78,37 +110,36 @@ By default Branch is local-only. To share sessions with people who don't have yo
 1. Create a free [Vercel account](https://vercel.com)
 2. Create a Blob store at https://vercel.com/dashboard/stores → Create → Blob
 3. Copy the `BLOB_READ_WRITE_TOKEN` from the store settings
-4. Note the store base URL (something like `https://abc123.public.blob.vercel-storage.com`)
+4. `export BLOB_READ_WRITE_TOKEN=vercel_blob_rw_xxxxxxxx` — Branch will now auto-upload every session
 
-**Use:**
+**Manual share:**
 ```bash
-export BLOB_READ_WRITE_TOKEN=vercel_blob_rw_xxxxxxxx
 branch share <sessionId>
 # Prints a public URL anyone can fetch
 ```
 
 **Self-hosted viewer:**
-Deploy the `viewer/` directory to Vercel. Set `BRANCH_BLOB_BASE=https://abc123.public.blob.vercel-storage.com` in the deployment env. The viewer will fall back to fetching from blob storage when a session isn't found locally.
+Deploy the `viewer/` directory to Vercel. See `viewer/README-DEPLOY.md` for step-by-step instructions.
 
 ### Environment variables (hosted mode)
 
-- `BLOB_READ_WRITE_TOKEN` — Vercel Blob token for `branch share`. Required only when uploading.
+- `BLOB_READ_WRITE_TOKEN` — Vercel Blob token. When set, every `branch "prompt"` run auto-uploads. Required for `branch share`.
 - `BRANCH_BLOB_BASE` — base URL of your Blob store. Set on the viewer deployment so it can serve shared sessions.
 
 ## How it works
 
 1. CLI spawns `claude --output-format=stream-json --verbose --print "<prompt>"`
-2. Parses the assistant stream for `type: "thinking"` blocks
-3. Splits thinking by headings / paragraphs into a tree
+2. Parses the assistant stream for `type: "thinking"` blocks (reasoning steps)
+3. Splits reasoning by headings / paragraphs into a tree
 4. Saves to `~/.branch/sessions/<id>.json`
 5. Next.js viewer reads the file and renders it with React Flow
-6. Click any node → fork (re-run with modifier) or inject-fact (re-run with new context)
+6. Click any node → explore an alternative path or add a new fact mid-thought
 
 ## What it captures — and what it doesn't
 
-- Captures the *surfaced* thinking blocks when extended thinking is on
-- Simple factual prompts ("A or B?") often skip extended thinking → empty tree
-- Tool-using sessions lose reasoning between tool calls (only pre-tool thinking is captured)
+- Captures the *surfaced* reasoning steps when extended reasoning is on
+- Simple factual prompts ("A or B?") often skip reasoning → sparse tree
+- Tool-using sessions lose reasoning between tool calls (only pre-tool reasoning is captured)
 - Implicit model cognition (attention patterns, token-level reasoning) is never exposed by any API — Branch captures what Claude narrates, not everything it "thinks"
 
 ## Project structure

@@ -15,6 +15,14 @@ export const NodeSchema: z.ZodType<any> = z.lazy(() =>
   })
 );
 
+export const DecisionSchema = z.object({
+  conclusion: z.string(),
+  rejected: z.array(z.string()).default([]),
+  confidence: z.enum(["low", "medium", "high"]),
+  revisitIf: z.string(),
+  decidedAt: z.string(),
+});
+
 export const TreeSchema = z.object({
   sessionId: z.string(),
   prompt: z.string(),
@@ -25,7 +33,9 @@ export const TreeSchema = z.object({
   tags: z.array(z.string()).default([]).optional(),
   pinned: z.boolean().default(false).optional(),
   incomplete: z.boolean().default(false).optional(),
+  decision: DecisionSchema.optional(),
 });
 
 export type Node = z.infer<typeof NodeSchema>;
 export type Tree = z.infer<typeof TreeSchema>;
+export type Decision = z.infer<typeof DecisionSchema>;

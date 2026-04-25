@@ -38,8 +38,8 @@ export function NodeDialog({ sessionId, nodeId, initialMode = "fork", onClose, o
 
     if (data?.newNodeId && onSuccess) {
       const label = mode === "fork"
-        ? `Forked at node ${nodeId.slice(0, 6)}`
-        : `Fact injected at node ${nodeId.slice(0, 6)}`;
+        ? `Alternative explored at node ${nodeId.slice(0, 6)}`
+        : `New fact added at node ${nodeId.slice(0, 6)}`;
       onSuccess(data.newNodeId, label);
     }
   }
@@ -56,7 +56,7 @@ export function NodeDialog({ sessionId, nodeId, initialMode = "fork", onClose, o
                 : "text-neutral-400 hover:text-neutral-700"
             }`}
           >
-            Fork
+            Explore alternative
           </button>
           <button
             onClick={() => setMode("inject")}
@@ -66,7 +66,7 @@ export function NodeDialog({ sessionId, nodeId, initialMode = "fork", onClose, o
                 : "text-neutral-400 hover:text-neutral-700"
             }`}
           >
-            Inject fact
+            Add new fact
           </button>
         </div>
 
@@ -93,7 +93,7 @@ export function NodeDialog({ sessionId, nodeId, initialMode = "fork", onClose, o
             disabled={!text.trim() || loading}
             className="px-4 py-2 text-sm rounded-lg bg-neutral-900 text-white disabled:opacity-40 hover:bg-neutral-700 transition-colors"
           >
-            {loading ? "Working…" : mode === "fork" ? "Fork" : "Inject"}
+            {loading ? "Working…" : mode === "fork" ? "Explore alternative" : "Add new fact"}
           </button>
         </div>
       </div>
