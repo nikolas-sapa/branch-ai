@@ -142,19 +142,19 @@ async function runList(args: string[]) {
 
 async function runDefault(args: string[]) {
   const skipOpen = args.includes("--no-open");
-  const useStream = args.includes("--stream");
+  const noStream = args.includes("--no-stream");
   let model: "sonnet" | "opus" | "haiku" = "sonnet";
   const prompt: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === "--model") { model = args[++i] as any; continue; }
     if (a === "--no-open") continue;
-    if (a === "--stream") continue;
+    if (a === "--no-stream") continue;
     prompt.push(a);
   }
   if (prompt.length === 0) {
     console.error(`Usage:
-  branch [--model sonnet|opus|haiku] [--no-open] [--stream] "your prompt"
+  branch [--model sonnet|opus|haiku] [--no-open] [--no-stream] "your prompt"
   branch list [--limit N]
   branch export <sessionId> [--format markdown|mermaid]
   branch diff <sessionA> <sessionB>
@@ -163,14 +163,12 @@ async function runDefault(args: string[]) {
   }
   const joined = prompt.join(" ");
 
-  if (useStream) {
+  if (!noStream) {
     console.log(`Thinking with ${model} (streaming)...`);
     let nodeCount = 0;
-    let sessionId = "";
     let finalTree: any = null;
     for await (const ev of branchStream(joined, { model })) {
       if (ev.type === "start") {
-        sessionId = ev.sessionId;
         console.log(`  Session: ${ev.sessionId}`);
       }
       if (ev.type === "tree_update") {
@@ -206,6 +204,7 @@ async function runDefault(args: string[]) {
     return;
   }
 
+  // --no-stream legacy path
   console.log(`Thinking with ${model}...`);
   const tree = await branch(joined, { model });
   const url = `${VIEWER_URL}/t/${tree.sessionId}`;

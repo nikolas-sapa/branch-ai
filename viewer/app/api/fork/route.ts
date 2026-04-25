@@ -59,5 +59,5 @@ export async function POST(req: Request) {
   attach(tree.root);
   await writeFile(path, JSON.stringify(tree, null, 2), "utf8");
 
-  return NextResponse.json({ ok: true, tree });
+  return NextResponse.json({ ok: true, tree, newNodeId: forkedRoot.id });
 }
