@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Branch — what to ship next (council)</title>
+<style>
+  :root {
+    --bg: #fafaf8;
+    --fg: #1a1a1a;
+    --muted: #6b6b6b;
+    --accent: #6d28d9;
+    --accent-soft: #f3efff;
+    --border: #e8e6e0;
+    --card: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    margin: 0;
+    line-height: 1.55;
+  }
+  .container {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 56px 32px 96px;
+  }
+  header {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 32px;
+    margin-bottom: 40px;
+  }
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  h1 {
+    font-size: 34px;
+    font-weight: 700;
+    margin: 10px 0 8px;
+    letter-spacing: -0.02em;
+  }
+  .subtitle { color: var(--muted); font-size: 15px; }
+  .question-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    padding: 20px 24px;
+    border-radius: 6px;
+    margin-bottom: 40px;
+    font-size: 15px;
+  }
+  .verdict {
+    background: #111;
+    color: #fafafa;
+    padding: 32px;
+    border-radius: 10px;
+    margin-bottom: 40px;
+  }
+  .verdict .eyebrow { color: #a78bfa; }
+  .verdict h2 {
+    font-size: 24px;
+    margin: 8px 0 20px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .verdict p, .verdict li { font-size: 15px; line-height: 1.6; }
+  .verdict ul { padding-left: 20px; }
+  .pick {
+    background: rgba(139, 92, 246, 0.08);
+    border: 1px solid rgba(167, 139, 250, 0.22);
+    padding: 20px 24px;
+    border-radius: 8px;
+    margin: 24px 0 8px;
+  }
+  .pick .label {
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #a78bfa;
+    font-weight: 600;
+  }
+  .pick .name {
+    font-size: 22px;
+    font-weight: 700;
+    margin: 6px 0;
+    color: #fff;
+  }
+  .pick .desc { color: #d4d4d4; font-size: 14px; }
+  section { margin-bottom: 32px; }
+  section h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 12px;
+    letter-spacing: -0.01em;
+  }
+  section p, section li { font-size: 15px; color: #2a2a2a; }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .advisor-chip {
+    background: var(--card);
+    border: 1px solid var(--border);
+    padding: 14px 16px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  .advisor-chip .role {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  .advisor-chip .pitch {
+    font-weight: 600;
+    margin-top: 4px;
+    font-size: 14px;
+  }
+  .advisor-chip .pos {
+    margin-top: 6px;
+    color: #444;
+    font-size: 12.5px;
+  }
+  details {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin-bottom: 10px;
+  }
+  details summary {
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14.5px;
+    list-style: none;
+  }
+  details summary::-webkit-details-marker { display: none; }
+  details summary::before {
+    content: "▸ ";
+    color: var(--accent);
+    margin-right: 4px;
+  }
+  details[open] summary::before { content: "▾ "; }
+  details .body {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    font-size: 14px;
+    color: #333;
+    line-height: 1.6;
+    white-space: pre-wrap;
+  }
+  .role-tag {
+    display: inline-block;
+    font-size: 10.5px;
+    padding: 2px 8px;
+    border-radius: 100px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    margin-left: 8px;
+    vertical-align: 2px;
+  }
+  footer {
+    margin-top: 64px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12.5px;
+    text-align: center;
+  }
+  .vote-bar {
+    background: #ededea;
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 4px;
+  }
+  .vote-fill {
+    background: #1a1a1a;
+    height: 100%;
+    transition: width 600ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .vote-row {
+    display: grid;
+    grid-template-columns: 200px 1fr 60px;
+    gap: 12px;
+    align-items: center;
+    padding: 8px 0;
+    font-size: 13.5px;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="eyebrow">LLM Council · 5 advisors · 3 peer reviewers</div>
+      <h1>What features should Branch ship next?</h1>
+      <div class="subtitle">branch-ai v0.4.0 · solo dev · live on npm · the right next moves, not roadmap-padding</div>
+    </header>
+
+    <div class="question-card">
+      <strong>Frame:</strong> Branch ships CLI (think/list/export/share/diff), MCP server (4 tools), Next.js viewer with React Flow + click-to-fork/inject + collapsible subtrees, streaming via SSE, semantic diff view, Vercel Blob hosted mode, Yjs real-time presence, and a separate Obsidian plugin. Solo builder, public npm package. What features should ship next that are <em>genuinely valuable</em> — not roadmap-padding?
+    </div>
+
+    <div class="verdict">
+      <div class="eyebrow">Chairman's verdict</div>
+      <h2>Fix the floor before raising the ceiling.</h2>
+
+      <div class="pick">
+        <div class="label">The pick</div>
+        <div class="name">2 weeks: bug fixes (week 1), then retention (week 2)</div>
+        <div class="desc">The product has visible defects (fork dead-end, hidden finalText, blunt truncation) that invalidate every higher-order feature. Ship those eight items, then earn the return visit with search/tagging/provenance. Defer the moonshots until you have evidence users come back.</div>
+      </div>
+
+      <p><strong>Week 1 — fix the floor:</strong></p>
+      <ol>
+        <li>Fork dialog dead-end → <code>router.push(/t/&lt;newSessionId&gt;)</code> after fork/inject</li>
+        <li>Render <code>finalText</code> as a fixed bottom panel in the viewer</li>
+        <li>Click-to-expand on truncated nodes</li>
+        <li>Make <code>--stream</code> the default, add <code>--no-stream</code> for legacy</li>
+      </ol>
+
+      <p><strong>Week 2 — earn the return visit:</strong></p>
+      <ol start="5">
+        <li><code>branch search "..."</code> and a search bar on viewer home</li>
+        <li>Tag and pin sessions</li>
+        <li>Provenance link from any forked node back to the question it forked from</li>
+        <li>Auto-save partial trees on interruption; flag incomplete sessions visibly</li>
+      </ol>
+
+      <p><strong>Defer:</strong> <code>branch merge</code>, <code>branch replay</code>, <code>branch watch</code>, public reasoning galleries, B2B compliance pivot — real ideas, but castles on a broken foundation today.</p>
+    </div>
+
+    <section>
+      <h3>Where the council agreed</h3>
+      <ul>
+        <li><strong>The core action loop is broken.</strong> Contrarian and Executor independently named the same defect: clicking fork → filling dialog → seeing nothing change.</li>
+        <li><strong><code>finalText</code> is invisible.</strong> Stored in the JSON, never rendered in the viewer. The thing users actually want to read is hidden.</li>
+        <li><strong>The on-ramp is broken.</strong> Outsider flagged that "wraps the Claude CLI" assumes 3 prior pieces of context. Contrarian flagged that v0.4.0 is unshipped while public install gets stale v0.1.2.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h3>Reviewer votes — strongest advisor</h3>
+      <div class="vote-row">
+        <div>C — Executor</div>
+        <div class="vote-bar"><div class="vote-fill" style="width: 100%;"></div></div>
+        <div>3/3</div>
+      </div>
+      <div class="vote-row">
+        <div>A — Outsider</div>
+        <div class="vote-bar"><div class="vote-fill" style="width: 0%;"></div></div>
+        <div>0/3</div>
+      </div>
+      <div class="vote-row">
+        <div>D — First Principles</div>
+        <div class="vote-bar"><div class="vote-fill" style="width: 0%;"></div></div>
+        <div>0/3</div>
+      </div>
+      <div class="vote-row">
+        <div>E — Expansionist</div>
+        <div class="vote-bar"><div class="vote-fill" style="width: 0%;"></div></div>
+        <div>0/3</div>
+      </div>
+      <div class="vote-row">
+        <div>B — Contrarian</div>
+        <div class="vote-bar"><div class="vote-fill" style="width: 0%;"></div></div>
+        <div>0/3</div>
+      </div>
+      <p style="font-size: 13px; color: var(--muted); margin-top: 12px;">All three reviewers independently sided with C: <em>"Concrete, actionable, high-leverage. A broken fork dialog poisons all the positioning work, all the loop rhetoric, and makes D and E irrelevant. Ship working software first."</em></p>
+    </section>
+
+    <section>
+      <h3>Where the council clashed</h3>
+      <ul>
+        <li><strong>Visionary vs. repair.</strong> Expansionist proposed <code>branch merge</code>, <code>branch replay</code>, B2B pivot. Reviewers sided with Executor's "fix the four broken things first." Vision without working software is a deck.</li>
+        <li><strong>Yjs presence — theater or premature?</strong> Contrarian called real-time presence "multiplayer for a single-player game." Reviewer 3 pushed back: maybe forking is for <em>async</em> review, in which case presence isn't theater, just early. Insufficient data to settle.</li>
+        <li><strong>Onboarding vs. depth.</strong> Outsider says fix the funnel before adding features. First Principles says reframe entirely as a "reasoning ledger." Both right at different time horizons.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h3>The blind spot all 5 advisors missed</h3>
+      <p style="font-size: 16px; padding-left: 16px; border-left: 3px solid var(--accent);"><em>Do users come back?</em></p>
+      <p>All three reviewers raised the same point independently. Every advisor optimized for acquisition (A), scope (B), bug fixes (C), strategic reframe (D), or moonshot (E). <strong>None asked about retention.</strong> A reasoning tree has zero stickiness if it's a throwaway. Without search, return-to-session UX, and durable persistence through interruption, the "reasoning ledger" and "compliance infrastructure" theses are fiction. The leading indicator isn't installs or forks — it's whether someone opens a past tree and acts on it.</p>
+    </section>
+
+    <section>
+      <h3>The 5 advisors</h3>
+      <div class="grid">
+        <div class="advisor-chip">
+          <div class="role">Outsider · A</div>
+          <div class="pitch">Onboarding is the enemy</div>
+          <div class="pos">"Wraps the Claude CLI" assumes 3 prior pieces of context. No 30-second pitch. Need zero-install demo, plain-English labels, default sharing, aha screenshot.</div>
+        </div>
+        <div class="advisor-chip">
+          <div class="role">Contrarian · B</div>
+          <div class="pitch">Yjs is theater. Ship v0.4.0.</div>
+          <div class="pos">Multiplayer for a single-player game. Obsidian plugin distracts. Click-to-fork doesn't visibly close. Discovery is the real problem, not diff. Kill scope.</div>
+        </div>
+        <div class="advisor-chip">
+          <div class="role">Executor · C ⭐</div>
+          <div class="pitch">Fix what's broken</div>
+          <div class="pos">4 concrete bugs &lt;3h each: fork dialog dead-end, finalText invisible, 220-char truncation, --stream not default. Ranked by leverage.</div>
+        </div>
+        <div class="advisor-chip">
+          <div class="role">First Principles · D</div>
+          <div class="pitch">Reasoning ledger</div>
+          <div class="pos">Nobody wants a tree — they want a defensible decision. Build decision anchors with rationale trails. Transforms visualizer into ledger.</div>
+        </div>
+        <div class="advisor-chip">
+          <div class="role">Expansionist · E</div>
+          <div class="pitch">Collaborative reasoning infra</div>
+          <div class="pos">branch merge (Git for thought), branch replay (regression test reasoning vs newer Claude), public galleries, branch watch, B2B compliance wedge.</div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h3>The one thing to do first</h3>
+      <p style="font-size: 17px; padding: 16px 20px; background: var(--card); border-left: 3px solid #16a34a; border-radius: 4px;">
+        <strong>Fix the fork dialog dead-end.</strong> Two hours of work. After a fork, <code>router.push</code> to the new <code>sessionId</code> instead of refreshing the current page. Until that line of code lands, every other feature is a tree falling in an empty forest — users click, see nothing change, and never return.
+      </p>
+    </section>
+
+    <footer>
+      Council session 20260425-074417 · 5 advisors · 3 reviewers · 1 chairman<br/>
+      Question: what to ship next for branch-ai · Run via <code>/llm-council</code>
+    </footer>
+  </div>
+</body>
+</html>

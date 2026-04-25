@@ -523,8 +523,9 @@ async function runDefault(args: string[]) {
       console.log(`  Nodes:   ${countNodes(finalTree.root)}`);
       console.log(`  File:    ${sessionPath(finalTree.sessionId)}`);
       console.log(`  View:    ${url}`);
-      // Auto-share if token is set and --local not passed
-      if (!skipShare && process.env.BLOB_READ_WRITE_TOKEN) {
+      // Auto-share ONLY when BRANCH_AUTO_SHARE=1 is explicitly set.
+      // Just having BLOB_READ_WRITE_TOKEN set is NOT consent to publish every session.
+      if (!skipShare && process.env.BRANCH_AUTO_SHARE === "1" && process.env.BLOB_READ_WRITE_TOKEN) {
         try {
           const publicUrl = await uploadSession(finalTree);
           console.log(`  Public:  ${publicUrl}`);
@@ -553,8 +554,9 @@ async function runDefault(args: string[]) {
   console.log(`  Nodes:   ${countNodes(tree.root)}`);
   console.log(`  File:    ${sessionPath(tree.sessionId)}`);
   console.log(`  View:    ${url}`);
-  // Auto-share if token is set and --local not passed
-  if (!skipShare && process.env.BLOB_READ_WRITE_TOKEN) {
+  // Auto-share ONLY when BRANCH_AUTO_SHARE=1 is explicitly set.
+  // Just having BLOB_READ_WRITE_TOKEN set is NOT consent to publish every session.
+  if (!skipShare && process.env.BRANCH_AUTO_SHARE === "1" && process.env.BLOB_READ_WRITE_TOKEN) {
     try {
       const publicUrl = await uploadSession(tree);
       console.log(`  Public:  ${publicUrl}`);

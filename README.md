@@ -49,7 +49,7 @@ branch [--model sonnet|opus|haiku] [--local] "your prompt"
 - Default model: `sonnet` (fastest, available on Pro)
 - Use `--model opus` for harder reasoning problems
 - Use `--model haiku` for quick drafts
-- Use `--local` to skip auto-sharing even when `BLOB_READ_WRITE_TOKEN` is set
+- Use `--local` to skip auto-sharing for a single run when `BRANCH_AUTO_SHARE=1` is set (auto-share is OFF by default — see Privacy section)
 
 Sessions are saved to `~/.branch/sessions/<id>.json`. The viewer reads them from there.
 
@@ -74,7 +74,8 @@ Sessions are saved to `~/.branch/sessions/<id>.json`. The viewer reads them from
 ### Environment variables
 
 - `BRANCH_VIEWER_URL` — override where the CLI prints the viewer link. Default: `http://localhost:7432`.
-- `BLOB_READ_WRITE_TOKEN` — when set, `branch "prompt"` automatically uploads each session so you get a public URL alongside the local one. Use `--local` to opt out per-run.
+- `BLOB_READ_WRITE_TOKEN` — Vercel Blob token. Required for `branch share <id>` (manual upload). **By itself, this does NOT cause auto-upload — see `BRANCH_AUTO_SHARE`.**
+- `BRANCH_AUTO_SHARE` — set to `1` to opt in to auto-upload of every `branch "prompt"` run. Off by default. Use `--local` to opt out per-run when auto-share is on.
 
 ## Decision anchors
 
@@ -92,13 +93,29 @@ Decisions show up in `branch list` with a `[decided]` marker and the conclusion 
 
 ## Gallery
 
-The viewer ships a `/gallery` route with curated reasoning examples you can explore in the tree canvas:
+The viewer ships a `/gallery` route with **a hardcoded list of curated reasoning examples** you can explore in the tree canvas:
 
 ```
 http://localhost:7432/gallery
 ```
 
-Click any card to open the full session — fork from any node, add a new fact, or compare with `branch diff`. The gallery is hardcoded in `viewer/lib/gallery.ts`; swap in your own session IDs to feature your own reasoning.
+Click any card to open the full session — fork from any node, add a new fact, or compare with `branch diff`.
+
+**Privacy note:** The gallery is **NOT auto-populated**. Only the sessions explicitly listed in `viewer/lib/gallery.ts` and bundled into `viewer/public/gallery-sessions/` ship with the viewer. Your own sessions in `~/.branch/sessions/` are private to your machine unless you choose to share them.
+
+## Privacy
+
+By default, Branch is **fully local**:
+- Sessions save to `~/.branch/sessions/<id>.json` — only on your machine
+- The viewer reads from your local disk
+- Nothing leaves your machine unless you explicitly share
+
+Sharing is **opt-in per use**:
+- `branch share <id>` — manual upload of one session to public Vercel Blob
+- `BRANCH_AUTO_SHARE=1` (env var) — opt in to auto-upload every run; remove the var to stop
+- `--local` flag — skip auto-share for a single run when `BRANCH_AUTO_SHARE=1` is set
+
+When you share, the **entire session JSON** (prompt + reasoning tree + final answer + decision) is uploaded to a **publicly readable URL**. Don't share sessions containing secrets, internal company data, or anything you wouldn't post on GitHub.
 
 ## MCP server — use Branch from inside Claude Code
 
@@ -138,12 +155,20 @@ By default Branch is local-only. To share sessions with people who don't have yo
 1. Create a free [Vercel account](https://vercel.com)
 2. Create a Blob store at https://vercel.com/dashboard/stores → Create → Blob
 3. Copy the `BLOB_READ_WRITE_TOKEN` from the store settings
-4. `export BLOB_READ_WRITE_TOKEN=vercel_blob_rw_xxxxxxxx` — Branch will now auto-upload every session
+4. `export BLOB_READ_WRITE_TOKEN=vercel_blob_rw_xxxxxxxx` — enables `branch share <id>`. **Does NOT auto-upload anything.**
 
-**Manual share:**
+**Manual share (recommended — explicit per session):**
 ```bash
 branch share <sessionId>
 # Prints a public URL anyone can fetch
+```
+
+**Auto-share every session (opt-in, off by default):**
+```bash
+export BLOB_READ_WRITE_TOKEN=vercel_blob_rw_xxxxxxxx
+export BRANCH_AUTO_SHARE=1
+branch "your prompt"   # now auto-uploads
+branch --local "your prompt"  # opt out for one run
 ```
 
 **Self-hosted viewer:**
@@ -151,7 +176,8 @@ Deploy the `viewer/` directory to Vercel. See `viewer/README-DEPLOY.md` for step
 
 ### Environment variables (hosted mode)
 
-- `BLOB_READ_WRITE_TOKEN` — Vercel Blob token. When set, every `branch "prompt"` run auto-uploads. Required for `branch share`.
+- `BLOB_READ_WRITE_TOKEN` — Vercel Blob token. Required for `branch share <id>` and `branch_share` MCP tool. By itself, it does NOT auto-upload anything.
+- `BRANCH_AUTO_SHARE` — set to `1` to opt in to auto-upload of every `branch "prompt"` run. Off by default.
 - `BRANCH_BLOB_BASE` — base URL of your Blob store. Set on the viewer deployment so it can serve shared sessions.
 
 ## How it works
