@@ -10,5 +10,8 @@ export default defineConfig({
         singleFork: true,
       },
     },
+    // Live tests spawn `claude` subprocess which can flake on transient
+    // network/rate-limit hiccups. Retry once before failing.
+    retry: 1,
   },
 });
