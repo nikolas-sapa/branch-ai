@@ -110,12 +110,21 @@ Add this to `~/.claude.json` under `mcpServers`:
 }
 ```
 
-Restart Claude Code. From inside any CC session you'll have:
+Restart Claude Code. From inside any CC session you'll have 13 tools:
 
 - `branch_think({ prompt, model? })` — externalize Claude's own reasoning as a tree. Returns viewer URL.
-- `branch_list_sessions({ limit? })` — recent trees.
-- `branch_fork({ sessionId, nodeId, prompt })` — fork from any node in an existing session.
+- `branch_fork({ sessionId, nodeId, modifier })` — fork from any node in an existing session.
 - `branch_inject({ sessionId, nodeId, fact })` — inject a new fact at a node and re-reason from there.
+- `branch_list_sessions({ limit? })` — recent trees.
+- `branch_search({ query, limit? })` — full-text search across all sessions (recall before duplicating effort).
+- `branch_decide({ sessionId, conclusion, rejected?, confidence, revisitIf })` — record a decision anchor (conclusion + rejected + confidence + revisit-if).
+- `branch_diff({ sessionA, sessionB })` — compare two sessions semantically (shared / changed / only-A / only-B).
+- `branch_export({ sessionId, format })` — export as markdown or mermaid flowchart.
+- `branch_replay({ sessionId, model? })` — re-run a session's original prompt with a (possibly different) model.
+- `branch_merge({ sessionA, sessionB })` — synthesize two sessions into a new combined session.
+- `branch_tag({ sessionId, tags })` — add tags to a session for organization.
+- `branch_pin({ sessionId, pinned })` — pin/unpin a session to the top of the list.
+- `branch_share({ sessionId })` — upload to public Vercel Blob and return a shareable URL (requires `BLOB_READ_WRITE_TOKEN`).
 
 ## Hosted mode (optional)
 

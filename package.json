@@ -1,6 +1,6 @@
 {
   "name": "branch-ai",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "A collaborative canvas for AI reasoning. Wraps the Claude Code CLI to capture extended thinking as a navigable, forkable tree.",
   "type": "module",
   "bin": {

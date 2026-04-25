@@ -15,12 +15,16 @@ import { parseThinking } from "./parser.js";
 import { buildForkPrompt } from "./fork.js";
 import { buildInjectPrompt } from "./inject.js";
 import { runClaude } from "./claude.js";
+import { toMarkdown, toMermaid } from "./export.js";
+import { uploadSession } from "./blob.js";
+import { diffTrees, diffSummary } from "./diff.js";
 
 const VIEWER_URL = process.env.BRANCH_VIEWER_URL ?? "http://localhost:7432";
 const MAX_PROMPT_LENGTH = 10_000;
 const FINAL_TEXT_PREVIEW = 2_000;
 const CLAUDE_TIMEOUT_MS = 180_000;
 const MAX_CONCURRENCY = 2;
+const EXPORT_MAX_CHARS = 8_000;
 
 /** Simple semaphore — allows at most N concurrent branch() calls. */
 let _inflight = 0;
@@ -76,8 +80,12 @@ function attach(tree: any, nodeId: string, subtree: any): boolean {
   return tree.children.some((c: any) => attach(c, nodeId, subtree));
 }
 
+function validateSessionId(id: any): id is string {
+  return typeof id === "string" && /^[a-zA-Z0-9_-]+$/.test(id);
+}
+
 const server = new Server(
-  { name: "branch", version: "0.2.1" },
+  { name: "branch", version: "0.7.1" },
   { capabilities: { tools: {} } }
 );
 
@@ -143,14 +151,133 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ["sessionId", "nodeId", "fact"],
       },
     },
+    {
+      name: "branch_decide",
+      description:
+        "Record a decision anchor on a Branch session: what was decided, what was rejected, confidence, and what would change the answer. Call this after reasoning concludes — it transforms the tree from raw thinking into a settled, defensible answer the user (and you) can return to. Especially valuable after multi-step analysis where the conclusion isn't trivially extractable.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sessionId: { type: "string" },
+          conclusion: { type: "string", maxLength: 2000 },
+          rejected: { type: "array", items: { type: "string" } },
+          confidence: { type: "string", enum: ["low", "medium", "high"] },
+          revisitIf: { type: "string", maxLength: 1000 },
+        },
+        required: ["sessionId", "conclusion", "confidence", "revisitIf"],
+      },
+    },
+    {
+      name: "branch_search",
+      description:
+        "Search all of the user's Branch sessions for content matching a query. Searches prompts, reasoning text, decisions, and final answers. Call this BEFORE doing fresh reasoning when the user asks a question that may have been explored before — recall past thinking instead of duplicating effort. Returns top 20 matches by relevance.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          query: { type: "string", maxLength: 500 },
+          limit: { type: "number" },
+        },
+        required: ["query"],
+      },
+    },
+    {
+      name: "branch_diff",
+      description:
+        "Compare two Branch sessions and return a structured diff. Identifies which reasoning steps are shared between the two trees, which only appear in A, which only in B, and which are present in both but worded differently. Call when the user wants to understand how thinking evolved or how two different approaches to a problem differ.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sessionA: { type: "string" },
+          sessionB: { type: "string" },
+        },
+        required: ["sessionA", "sessionB"],
+      },
+    },
+    {
+      name: "branch_export",
+      description:
+        "Export a Branch session as a structured Markdown document or a Mermaid flowchart. Call when the user wants to include a reasoning session in documentation, a PR description, or a notebook.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sessionId: { type: "string" },
+          format: { type: "string", enum: ["markdown", "mermaid"] },
+        },
+        required: ["sessionId"],
+      },
+    },
+    {
+      name: "branch_replay",
+      description:
+        "Re-run a previous session's original prompt with a (possibly different) Claude model. Useful when a newer model is available and you want to see how its reasoning differs. The result is a fresh session tagged 'replay-of:<originalId>' linking back to the original. Returns the new sessionId and a diff URL.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sessionId: { type: "string" },
+          model: { type: "string", enum: ["sonnet", "opus", "haiku"] },
+        },
+        required: ["sessionId"],
+      },
+    },
+    {
+      name: "branch_merge",
+      description:
+        "Synthesize the reasoning from two existing Branch sessions into a new combined session. Branch will reason about how the two lines of thinking agree, where they diverge, and what a unified answer looks like. Useful when two prior decisions need to be reconciled, or when comparing how two different stakeholders thought about the same problem.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sessionA: { type: "string" },
+          sessionB: { type: "string" },
+        },
+        required: ["sessionA", "sessionB"],
+      },
+    },
+    {
+      name: "branch_tag",
+      description:
+        "Add tags to a Branch session for organization. Tags are persisted and visible in branch list and search results. Useful for grouping related explorations.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sessionId: { type: "string" },
+          tags: { type: "array", items: { type: "string" } },
+        },
+        required: ["sessionId", "tags"],
+      },
+    },
+    {
+      name: "branch_pin",
+      description:
+        "Pin a Branch session to the top of the list (or unpin it). Pinned sessions surface first in branch list and the viewer home, making important decisions easy to find.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sessionId: { type: "string" },
+          pinned: { type: "boolean" },
+        },
+        required: ["sessionId", "pinned"],
+      },
+    },
+    {
+      name: "branch_share",
+      description:
+        "Upload a Branch session to public Vercel Blob storage and return a shareable URL. Requires BLOB_READ_WRITE_TOKEN env var. Call when the user wants to share their reasoning with someone who doesn't have local access.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sessionId: { type: "string" },
+        },
+        required: ["sessionId"],
+      },
+    },
   ],
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
   const { name, arguments: args } = req.params;
 
+  // ── branch_think ────────────────────────────────────────────────────────────
   if (name === "branch_think") {
-    // Input validation
     ensureClaudeBinary();
     const rawPrompt = (args as any)?.prompt;
     if (typeof rawPrompt !== "string" || rawPrompt.trim().length === 0) {
@@ -199,6 +326,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     }
   }
 
+  // ── branch_list_sessions ────────────────────────────────────────────────────
   if (name === "branch_list_sessions") {
     const limit = Math.min(Number((args as any)?.limit) || 10, 100);
     const dir = join(homedir(), ".branch", "sessions");
@@ -231,11 +359,12 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
     };
   }
 
+  // ── branch_fork / branch_inject ─────────────────────────────────────────────
   if (name === "branch_fork" || name === "branch_inject") {
     ensureClaudeBinary();
     const { sessionId, nodeId } = args as any;
     const modifierOrFact = name === "branch_fork" ? (args as any).modifier : (args as any).fact;
-    if (!/^[a-zA-Z0-9_-]+$/.test(sessionId || "")) {
+    if (!validateSessionId(sessionId)) {
       return { isError: true, content: [{ type: "text", text: "invalid sessionId" }] };
     }
     if (typeof modifierOrFact !== "string" || modifierOrFact.trim().length === 0) {
@@ -287,6 +416,333 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       return { isError: true, content: [{ type: "text", text: err?.message ?? `${name} failed` }] };
     } finally {
       releaseSemaphore();
+    }
+  }
+
+  // ── branch_decide ───────────────────────────────────────────────────────────
+  if (name === "branch_decide") {
+    const { sessionId, conclusion, rejected, confidence, revisitIf } = args as any;
+    if (!validateSessionId(sessionId)) {
+      return { isError: true, content: [{ type: "text", text: "invalid sessionId" }] };
+    }
+    if (typeof conclusion !== "string" || conclusion.trim().length === 0) {
+      return { isError: true, content: [{ type: "text", text: "conclusion must be a non-empty string" }] };
+    }
+    if (!["low", "medium", "high"].includes(confidence)) {
+      return { isError: true, content: [{ type: "text", text: "confidence must be low, medium, or high" }] };
+    }
+    if (typeof revisitIf !== "string" || revisitIf.trim().length === 0) {
+      return { isError: true, content: [{ type: "text", text: "revisitIf must be a non-empty string" }] };
+    }
+    try {
+      const tree = await loadSession(sessionId);
+      (tree as any).decision = {
+        conclusion,
+        rejected: Array.isArray(rejected) ? rejected : [],
+        confidence,
+        revisitIf,
+        decidedAt: new Date().toISOString(),
+      };
+      await saveSession(tree);
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            sessionId,
+            decisionRecorded: true,
+            viewerUrl: `${VIEWER_URL}/t/${sessionId}#decision`,
+          }, null, 2),
+        }],
+      };
+    } catch (err: any) {
+      return { isError: true, content: [{ type: "text", text: err?.message ?? "branch_decide failed" }] };
+    }
+  }
+
+  // ── branch_search ───────────────────────────────────────────────────────────
+  if (name === "branch_search") {
+    const rawQuery = (args as any)?.query;
+    if (typeof rawQuery !== "string" || rawQuery.trim().length === 0) {
+      return { isError: true, content: [{ type: "text", text: "query must be a non-empty string" }] };
+    }
+    const query = rawQuery.trim().toLowerCase();
+    const limit = Math.min(Number((args as any)?.limit) || 20, 20);
+    const dir = join(homedir(), ".branch", "sessions");
+    let files: string[] = [];
+    try { files = await readdir(dir); } catch { files = []; }
+
+    function flattenContent(n: any): string[] {
+      const kids: string[] = (n.children ?? []).flatMap(flattenContent);
+      return [n.content ?? "", ...kids];
+    }
+
+    function scoreText(haystack: string): number {
+      const h = haystack.toLowerCase();
+      if (h.includes(query)) return 1;
+      const tokens = query.split(/\s+/).filter(Boolean);
+      if (tokens.length === 0) return 0;
+      const matched = tokens.filter((tok) => h.includes(tok)).length;
+      return matched / tokens.length;
+    }
+
+    const matches: Array<{ sessionId: string; prompt: string; model: string; decision: string | null; viewerUrl: string; score: number }> = [];
+    for (const f of files) {
+      if (!f.endsWith(".json")) continue;
+      try {
+        const raw = await readFile(join(dir, f), "utf8");
+        const t = JSON.parse(raw);
+        const decisionText = t.decision?.conclusion ?? "";
+        const haystack = [t.prompt ?? "", t.finalText ?? "", decisionText, ...flattenContent(t.root)].join(" ");
+        const score = scoreText(haystack);
+        if (score > 0) {
+          matches.push({
+            sessionId: t.sessionId,
+            prompt: (t.prompt ?? "").slice(0, 100),
+            model: t.model,
+            decision: t.decision?.conclusion ?? null,
+            viewerUrl: `${VIEWER_URL}/t/${t.sessionId}`,
+            score,
+          });
+        }
+      } catch { /* skip malformed */ }
+    }
+
+    matches.sort((a, b) => b.score - a.score);
+    return {
+      content: [{ type: "text", text: JSON.stringify(matches.slice(0, limit), null, 2) }],
+    };
+  }
+
+  // ── branch_diff ─────────────────────────────────────────────────────────────
+  if (name === "branch_diff") {
+    const { sessionA, sessionB } = args as any;
+    if (!validateSessionId(sessionA) || !validateSessionId(sessionB)) {
+      return { isError: true, content: [{ type: "text", text: "invalid sessionA or sessionB" }] };
+    }
+    try {
+      const [treeA, treeB] = await Promise.all([loadSession(sessionA), loadSession(sessionB)]);
+      const diff = diffTrees(treeA.root, treeB.root);
+      const summary = diffSummary(diff);
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            sessionA,
+            sessionB,
+            diffUrl: `${VIEWER_URL}/d/${sessionA}/${sessionB}`,
+            summary,
+          }, null, 2),
+        }],
+      };
+    } catch (err: any) {
+      return { isError: true, content: [{ type: "text", text: err?.message ?? "branch_diff failed" }] };
+    }
+  }
+
+  // ── branch_export ───────────────────────────────────────────────────────────
+  if (name === "branch_export") {
+    const { sessionId, format } = args as any;
+    if (!validateSessionId(sessionId)) {
+      return { isError: true, content: [{ type: "text", text: "invalid sessionId" }] };
+    }
+    if (!["markdown", "mermaid"].includes(format)) {
+      return { isError: true, content: [{ type: "text", text: "format must be markdown or mermaid" }] };
+    }
+    try {
+      const tree = await loadSession(sessionId);
+      let content = format === "mermaid" ? toMermaid(tree) : toMarkdown(tree);
+      if (content.length > EXPORT_MAX_CHARS) {
+        content = content.slice(0, EXPORT_MAX_CHARS) + "\n[truncated]";
+      }
+      return {
+        content: [{ type: "text", text: JSON.stringify({ format, content }, null, 2) }],
+      };
+    } catch (err: any) {
+      return { isError: true, content: [{ type: "text", text: err?.message ?? "branch_export failed" }] };
+    }
+  }
+
+  // ── branch_replay ───────────────────────────────────────────────────────────
+  if (name === "branch_replay") {
+    ensureClaudeBinary();
+    const { sessionId } = args as any;
+    if (!validateSessionId(sessionId)) {
+      return { isError: true, content: [{ type: "text", text: "invalid sessionId" }] };
+    }
+    const rawModel = (args as any)?.model;
+    const chosenModel: AllowedModel | undefined =
+      rawModel !== undefined && ALLOWED_MODELS.includes(rawModel as AllowedModel)
+        ? (rawModel as AllowedModel)
+        : undefined;
+
+    await acquireSemaphore();
+    try {
+      const original = await loadSession(sessionId);
+      const replayModel = chosenModel ?? (ALLOWED_MODELS.includes(original.model as AllowedModel) ? (original.model as AllowedModel) : "sonnet");
+
+      const replayTree = await Promise.race([
+        branch(original.prompt, { model: replayModel }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("branch_replay timed out after 180s")), CLAUDE_TIMEOUT_MS)
+        ),
+      ]);
+
+      (replayTree as any).tags = Array.from(new Set([...((replayTree as any).tags ?? []), `replay-of:${sessionId}`]));
+      await saveSession(replayTree);
+
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            originalSessionId: sessionId,
+            replaySessionId: replayTree.sessionId,
+            diffUrl: `${VIEWER_URL}/d/${sessionId}/${replayTree.sessionId}`,
+            viewerUrl: `${VIEWER_URL}/t/${replayTree.sessionId}`,
+          }, null, 2),
+        }],
+      };
+    } catch (err: any) {
+      return { isError: true, content: [{ type: "text", text: err?.message ?? "branch_replay failed" }] };
+    } finally {
+      releaseSemaphore();
+    }
+  }
+
+  // ── branch_merge ────────────────────────────────────────────────────────────
+  if (name === "branch_merge") {
+    ensureClaudeBinary();
+    const { sessionA, sessionB } = args as any;
+    if (!validateSessionId(sessionA) || !validateSessionId(sessionB)) {
+      return { isError: true, content: [{ type: "text", text: "invalid sessionA or sessionB" }] };
+    }
+
+    await acquireSemaphore();
+    try {
+      const [treeA, treeB] = await Promise.all([loadSession(sessionA), loadSession(sessionB)]);
+
+      const synthesis = await Promise.race([
+        branch(
+          `You're synthesizing reasoning from two earlier explorations:
+
+ORIGINAL QUESTION A: ${treeA.prompt}
+ORIGINAL QUESTION B: ${treeB.prompt}
+
+Decision A: ${(treeA as any).decision?.conclusion ?? "(no recorded decision)"}
+Decision B: ${(treeB as any).decision?.conclusion ?? "(no recorded decision)"}
+
+Reason about: where do these two lines of thinking agree? Where do they diverge? What would a unified answer look like that respects both?`,
+          { model: ALLOWED_MODELS.includes(treeA.model as AllowedModel) ? (treeA.model as AllowedModel) : "sonnet" }
+        ),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("branch_merge timed out after 180s")), CLAUDE_TIMEOUT_MS)
+        ),
+      ]);
+
+      (synthesis.root as any).children.push({
+        id: `src-a-${treeA.sessionId}`,
+        content: `[Source A: ${treeA.prompt.slice(0, 80)}]`,
+        children: [treeA.root],
+        metadata: { kind: "heading" as const },
+      });
+      (synthesis.root as any).children.push({
+        id: `src-b-${treeB.sessionId}`,
+        content: `[Source B: ${treeB.prompt.slice(0, 80)}]`,
+        children: [treeB.root],
+        metadata: { kind: "heading" as const },
+      });
+      (synthesis as any).tags = [...((synthesis as any).tags ?? []), `merge-of:${sessionA}`, `merge-of:${sessionB}`];
+      await saveSession(synthesis);
+
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            mergeSessionId: synthesis.sessionId,
+            viewerUrl: `${VIEWER_URL}/t/${synthesis.sessionId}`,
+          }, null, 2),
+        }],
+      };
+    } catch (err: any) {
+      return { isError: true, content: [{ type: "text", text: err?.message ?? "branch_merge failed" }] };
+    } finally {
+      releaseSemaphore();
+    }
+  }
+
+  // ── branch_tag ──────────────────────────────────────────────────────────────
+  if (name === "branch_tag") {
+    const { sessionId, tags } = args as any;
+    if (!validateSessionId(sessionId)) {
+      return { isError: true, content: [{ type: "text", text: "invalid sessionId" }] };
+    }
+    if (!Array.isArray(tags) || tags.length === 0) {
+      return { isError: true, content: [{ type: "text", text: "tags must be a non-empty array" }] };
+    }
+    try {
+      const tree = await loadSession(sessionId);
+      (tree as any).tags = Array.from(new Set([...((tree as any).tags ?? []), ...tags]));
+      await saveSession(tree);
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({ sessionId, tags: (tree as any).tags }, null, 2),
+        }],
+      };
+    } catch (err: any) {
+      return { isError: true, content: [{ type: "text", text: err?.message ?? "branch_tag failed" }] };
+    }
+  }
+
+  // ── branch_pin ──────────────────────────────────────────────────────────────
+  if (name === "branch_pin") {
+    const { sessionId, pinned } = args as any;
+    if (!validateSessionId(sessionId)) {
+      return { isError: true, content: [{ type: "text", text: "invalid sessionId" }] };
+    }
+    if (typeof pinned !== "boolean") {
+      return { isError: true, content: [{ type: "text", text: "pinned must be a boolean" }] };
+    }
+    try {
+      const tree = await loadSession(sessionId);
+      (tree as any).pinned = pinned;
+      await saveSession(tree);
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({ sessionId, pinned }, null, 2),
+        }],
+      };
+    } catch (err: any) {
+      return { isError: true, content: [{ type: "text", text: err?.message ?? "branch_pin failed" }] };
+    }
+  }
+
+  // ── branch_share ─────────────────────────────────────────────────────────────
+  if (name === "branch_share") {
+    const { sessionId } = args as any;
+    if (!validateSessionId(sessionId)) {
+      return { isError: true, content: [{ type: "text", text: "invalid sessionId" }] };
+    }
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return {
+        isError: true,
+        content: [{
+          type: "text",
+          text: "BLOB_READ_WRITE_TOKEN not set on the MCP server environment. Set it in the env block of ~/.claude.json branch entry.",
+        }],
+      };
+    }
+    try {
+      const tree = await loadSession(sessionId);
+      const publicUrl = await uploadSession(tree);
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({ sessionId, publicUrl }, null, 2),
+        }],
+      };
+    } catch (err: any) {
+      return { isError: true, content: [{ type: "text", text: err?.message ?? "branch_share failed" }] };
     }
   }
 
