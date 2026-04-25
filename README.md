@@ -2,7 +2,7 @@
 
 A collaborative canvas for AI reasoning. Wraps the `claude` CLI to capture Claude's reasoning steps as a navigable tree — you can walk backward through the thinking, explore alternative paths from any point, or add a new fact mid-thought and watch how the conclusion changes.
 
-**See it live:** Try the [public demo](https://branch-ai.vercel.app) — view real reasoning trees. To create your own and fork them, install locally below.
+**See it live:** Try the [public demo](https://branchai-fawn.vercel.app) — view real reasoning trees. To create your own and fork them, install locally below.
 
 > **Why this exists.** When Claude works through a hard problem, the reasoning vanishes the moment you see the answer. Branch preserves every reasoning step, lets you rewind to any point, and explore "what if I changed this assumption?" — without starting over.
 
