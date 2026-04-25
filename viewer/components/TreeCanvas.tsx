@@ -9,6 +9,7 @@ import { PresenceLayer } from "./PresenceLayer";
 import { PeopleIndicator } from "./PeopleIndicator";
 import { layoutTree } from "@/lib/layout";
 import { makeProvider } from "@/lib/presence";
+import { isLocalViewer } from "@/lib/mode";
 
 const nodeTypes = { card: NodeCard };
 
@@ -78,9 +79,12 @@ export function TreeCanvas({ root, sessionId }: { root: RawNode; sessionId: stri
   const [dialogState, setDialogState] = useState<{ nodeId: string; mode: "fork" | "inject" } | null>(null);
   const [pendingFocusNodeId, setPendingFocusNodeId] = useState<string | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [local, setLocal] = useState(true);
   const toastCounter = useRef(0);
   const providerRef = useRef<ReturnType<typeof makeProvider> | null>(null);
   const [, forceUpdate] = useState(0);
+
+  useEffect(() => { setLocal(isLocalViewer()); }, []);
 
   const showToast = useCallback((message: string) => {
     const id = ++toastCounter.current;
@@ -89,6 +93,7 @@ export function TreeCanvas({ root, sessionId }: { root: RawNode; sessionId: stri
   }, []);
 
   useEffect(() => {
+    if (!isLocalViewer()) return; // skip presence in hosted mode
     providerRef.current = makeProvider(sessionId);
     forceUpdate((n) => n + 1);
 
@@ -220,9 +225,9 @@ export function TreeCanvas({ root, sessionId }: { root: RawNode; sessionId: stri
           />
         )}
 
-        {p && <PresenceLayer provider={p.provider} />}
+        {local && p && <PresenceLayer provider={p.provider} />}
 
-        {p && (
+        {local && p && (
           <div className="absolute top-3 right-3 z-50 bg-white/90 backdrop-blur rounded-full px-2 py-1 shadow-sm border border-neutral-200">
             <PeopleIndicator provider={p.provider} me={p.me} />
           </div>

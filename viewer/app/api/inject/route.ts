@@ -4,11 +4,18 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { parseThinking } from "../../../lib/parser";
+import { isLocalRequest } from "@/lib/server-mode";
 
 const SESSION_ID_RE = /^[a-zA-Z0-9_-]+$/;
 const ALLOWED_MODELS = ["sonnet", "opus", "haiku"] as const;
 
 export async function POST(req: Request) {
+  if (!(await isLocalRequest())) {
+    return NextResponse.json(
+      { error: "Fork and inject require a local Branch installation. Install with: npm install -g branch-ai" },
+      { status: 403 }
+    );
+  }
   const { sessionId, nodeId, fact } = await req.json();
   if (!sessionId || !nodeId || !fact) {
     return NextResponse.json({ error: "missing params" }, { status: 400 });

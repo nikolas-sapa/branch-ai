@@ -2,6 +2,8 @@
 
 A collaborative canvas for AI reasoning. Wraps the `claude` CLI to capture Claude's reasoning steps as a navigable tree — you can walk backward through the thinking, explore alternative paths from any point, or add a new fact mid-thought and watch how the conclusion changes.
 
+**See it live:** Try the [public demo](https://branch-ai.vercel.app) — view real reasoning trees. To create your own and fork them, install locally below.
+
 > **Why this exists.** When Claude works through a hard problem, the reasoning vanishes the moment you see the answer. Branch preserves every reasoning step, lets you rewind to any point, and explore "what if I changed this assumption?" — without starting over.
 
 ![Branch viewer screenshot](https://raw.githubusercontent.com/84yk8btb9f-prog/branch-ai/main/assets/viewer.png)
@@ -129,6 +131,8 @@ Restart Claude Code. From inside any CC session you'll have 13 tools:
 ## Hosted mode (optional)
 
 By default Branch is local-only. To share sessions with people who don't have your machine, use Vercel Blob storage.
+
+> **Hosted = read-only.** When the viewer is deployed to Vercel (or any non-localhost host), fork, inject, and the prompt form are hidden and replaced with an install CTA. Those actions spawn a `claude` subprocess locally — they don't exist on Vercel. Visitors can browse and navigate trees; to create or fork them they need a local install.
 
 **Setup (one-time, free tier):**
 1. Create a free [Vercel account](https://vercel.com)

@@ -1,13 +1,15 @@
 "use client";
 
-import { useState, useRef, FormEvent, useCallback } from "react";
+import { useState, useRef, FormEvent, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { isLocalViewer } from "@/lib/mode";
 
 type SearchResult = { sessionId: string; prompt: string; model: string; createdAt: string; score: number };
 
 export default function Home() {
   const router = useRouter();
+  const [local, setLocal] = useState(true);
   const [prompt, setPrompt] = useState("");
   const [model, setModel] = useState("sonnet");
   const [streaming, setStreaming] = useState(false);
@@ -18,6 +20,8 @@ export default function Home() {
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
   const [searching, setSearching] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => { setLocal(isLocalViewer()); }, []);
 
   const handleSearch = useCallback(async (q: string) => {
     if (!q.trim()) { setSearchResults(null); return; }
@@ -112,132 +116,155 @@ export default function Home() {
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center p-8 gap-8">
+      {/* Hosted-mode banner */}
+      {!local && (
+        <div className="w-full max-w-2xl rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600 text-center">
+          You&rsquo;re viewing the public Branch demo. Install locally to create your own reasoning trees.
+        </div>
+      )}
+
       <div className="max-w-2xl w-full space-y-6">
         <div className="text-center space-y-2">
           <h1 className="text-4xl font-semibold tracking-tight">Branch</h1>
           <p className="text-neutral-500 text-sm">
-            Ask a question and watch the reasoning tree build in real time.
+            {local
+              ? "A collaborative canvas for AI reasoning. Run branch \"your prompt\" in your terminal, then open the session URL printed there."
+              : "See AI reasoning as a navigable tree. Explore real examples below — fork them yourself by installing locally."}
           </p>
-          <div>
+          <div className="flex gap-3 justify-center pt-1">
             <Link
               href="/gallery"
               className="text-xs text-neutral-400 hover:text-neutral-700 transition-colors"
             >
               Browse the gallery →
             </Link>
+            {!local && (
+              <a
+                href="https://github.com/84yk8btb9f-prog/branch-ai#install"
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-neutral-400 hover:text-neutral-700 transition-colors"
+              >
+                Install Branch →
+              </a>
+            )}
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <textarea
-            className="w-full rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm
-                       placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-300
-                       resize-none disabled:opacity-50"
-            rows={4}
-            placeholder='e.g. "Weigh the tradeoffs: rebuild vs refactor a 3-year-old codebase?"'
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            disabled={streaming}
-          />
+        {local && (
+          <>
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <textarea
+                className="w-full rounded-lg border border-neutral-200 bg-white px-4 py-3 text-sm
+                           placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-300
+                           resize-none disabled:opacity-50"
+                rows={4}
+                placeholder='e.g. "Weigh the tradeoffs: rebuild vs refactor a 3-year-old codebase?"'
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                disabled={streaming}
+              />
 
-          <div className="flex items-center gap-3">
-            <select
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              disabled={streaming}
-              className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm
-                         focus:outline-none focus:ring-2 focus:ring-neutral-300 disabled:opacity-50"
-            >
-              <option value="sonnet">sonnet</option>
-              <option value="opus">opus</option>
-              <option value="haiku">haiku</option>
-            </select>
+              <div className="flex items-center gap-3">
+                <select
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  disabled={streaming}
+                  className="rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm
+                             focus:outline-none focus:ring-2 focus:ring-neutral-300 disabled:opacity-50"
+                >
+                  <option value="sonnet">sonnet</option>
+                  <option value="opus">opus</option>
+                  <option value="haiku">haiku</option>
+                </select>
 
-            {streaming ? (
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="px-5 py-2 rounded-md bg-neutral-200 text-neutral-700 text-sm font-medium hover:bg-neutral-300 transition-colors"
-              >
-                Cancel
-              </button>
-            ) : (
-              <button
-                type="submit"
-                disabled={!prompt.trim()}
-                className="px-5 py-2 rounded-md bg-neutral-900 text-white text-sm font-medium
-                           hover:bg-neutral-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                Think
-              </button>
-            )}
-
-            {status && (
-              <span className="text-sm text-neutral-500">{status}</span>
-            )}
-          </div>
-        </form>
-
-        {thinkingText && (
-          <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 max-h-64 overflow-y-auto">
-            <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-2">
-              Thinking
-            </p>
-            <pre className="text-xs text-neutral-600 whitespace-pre-wrap font-mono leading-relaxed">
-              {thinkingText}
-            </pre>
-          </div>
-        )}
-
-        <div className="text-center text-xs text-neutral-400">
-          Or run{" "}
-          <code className="bg-neutral-200 rounded px-1 py-0.5">
-            branch &quot;your question&quot;
-          </code>{" "}
-          in your terminal — both save to the same session store.
-        </div>
-
-        {/* Search */}
-        <div className="space-y-3">
-          <div className="relative">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={onSearchChange}
-              placeholder="Search past sessions…"
-              className="w-full rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm
-                         placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-300"
-            />
-            {searching && (
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-400">
-                searching…
-              </span>
-            )}
-          </div>
-
-          {searchResults !== null && (
-            <div className="space-y-2">
-              {searchResults.length === 0 ? (
-                <p className="text-sm text-neutral-400 text-center py-2">No sessions match &ldquo;{searchQuery}&rdquo;</p>
-              ) : (
-                searchResults.map((r) => (
-                  <Link
-                    key={r.sessionId}
-                    href={`/t/${r.sessionId}`}
-                    className="block rounded-lg border border-neutral-200 bg-white px-4 py-3 hover:border-neutral-400 transition-colors"
+                {streaming ? (
+                  <button
+                    type="button"
+                    onClick={handleCancel}
+                    className="px-5 py-2 rounded-md bg-neutral-200 text-neutral-700 text-sm font-medium hover:bg-neutral-300 transition-colors"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-xs font-mono text-neutral-400">{r.sessionId}</span>
-                      <span className="text-xs text-neutral-300">{r.model}</span>
-                    </div>
-                    <p className="text-sm text-neutral-700 mt-1 truncate">{r.prompt}</p>
-                    <p className="text-xs text-neutral-400 mt-0.5">{new Date(r.createdAt).toLocaleString()}</p>
-                  </Link>
-                ))
+                    Cancel
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={!prompt.trim()}
+                    className="px-5 py-2 rounded-md bg-neutral-900 text-white text-sm font-medium
+                               hover:bg-neutral-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Think
+                  </button>
+                )}
+
+                {status && (
+                  <span className="text-sm text-neutral-500">{status}</span>
+                )}
+              </div>
+            </form>
+
+            {thinkingText && (
+              <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4 max-h-64 overflow-y-auto">
+                <p className="text-xs font-medium text-neutral-400 uppercase tracking-wider mb-2">
+                  Thinking
+                </p>
+                <pre className="text-xs text-neutral-600 whitespace-pre-wrap font-mono leading-relaxed">
+                  {thinkingText}
+                </pre>
+              </div>
+            )}
+
+            <div className="text-center text-xs text-neutral-400">
+              Or run{" "}
+              <code className="bg-neutral-200 rounded px-1 py-0.5">
+                branch &quot;your question&quot;
+              </code>{" "}
+              in your terminal — both save to the same session store.
+            </div>
+
+            {/* Search — local only (searches local session store) */}
+            <div className="space-y-3">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={onSearchChange}
+                  placeholder="Search past sessions…"
+                  className="w-full rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm
+                             placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-300"
+                />
+                {searching && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-400">
+                    searching…
+                  </span>
+                )}
+              </div>
+
+              {searchResults !== null && (
+                <div className="space-y-2">
+                  {searchResults.length === 0 ? (
+                    <p className="text-sm text-neutral-400 text-center py-2">No sessions match &ldquo;{searchQuery}&rdquo;</p>
+                  ) : (
+                    searchResults.map((r) => (
+                      <Link
+                        key={r.sessionId}
+                        href={`/t/${r.sessionId}`}
+                        className="block rounded-lg border border-neutral-200 bg-white px-4 py-3 hover:border-neutral-400 transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-mono text-neutral-400">{r.sessionId}</span>
+                          <span className="text-xs text-neutral-300">{r.model}</span>
+                        </div>
+                        <p className="text-sm text-neutral-700 mt-1 truncate">{r.prompt}</p>
+                        <p className="text-xs text-neutral-400 mt-0.5">{new Date(r.createdAt).toLocaleString()}</p>
+                      </Link>
+                    ))
+                  )}
+                </div>
               )}
             </div>
-          )}
-        </div>
+          </>
+        )}
       </div>
     </main>
   );

@@ -1,9 +1,17 @@
 import { spawn } from "node:child_process";
+import { NextResponse } from "next/server";
+import { isLocalRequest } from "@/lib/server-mode";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  if (!(await isLocalRequest())) {
+    return NextResponse.json(
+      { error: "Fork and inject require a local Branch installation. Install with: npm install -g branch-ai" },
+      { status: 403 }
+    );
+  }
   const body = await req.json().catch(() => ({}));
   const { prompt, model = "sonnet" } = body as { prompt?: string; model?: string };
 
