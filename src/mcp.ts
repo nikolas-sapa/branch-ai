@@ -77,7 +77,7 @@ function attach(tree: any, nodeId: string, subtree: any): boolean {
 }
 
 const server = new Server(
-  { name: "branch", version: "0.1.7" },
+  { name: "branch", version: "0.2.1" },
   { capabilities: { tools: {} } }
 );
 

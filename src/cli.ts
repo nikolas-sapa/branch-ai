@@ -134,7 +134,8 @@ async function runDefault(args: string[]) {
     console.error(`Usage:
   branch [--model sonnet|opus|haiku] [--no-open] [--stream] "your prompt"
   branch list [--limit N]
-  branch export <sessionId> [--format markdown|mermaid]`);
+  branch export <sessionId> [--format markdown|mermaid]
+  branch diff <sessionA> <sessionB>`);
     process.exit(1);
   }
   const joined = prompt.join(" ");
@@ -203,10 +204,22 @@ async function runDefault(args: string[]) {
   }
 }
 
+async function runDiff(args: string[]) {
+  const [a, b] = args;
+  if (!a || !b) {
+    console.error("Usage: branch diff <sessionA> <sessionB>");
+    process.exit(1);
+  }
+  const url = `${VIEWER_URL}/d/${a}/${b}`;
+  console.log(`Diff: ${url}`);
+  if (await viewerReachable(VIEWER_URL)) openInBrowser(url);
+}
+
 async function main() {
   const args = process.argv.slice(2);
   if (args[0] === "export") return runExport(args.slice(1));
   if (args[0] === "list") return runList(args.slice(1));
+  if (args[0] === "diff") return runDiff(args.slice(1));
   return runDefault(args);
 }
 
