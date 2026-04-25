@@ -1,0 +1,117 @@
+{
+  "sessionId": "HtMKdRWb-d",
+  "prompt": "I'm a CTO at a 20-person startup. Our engineers want to rewrite our 5-year-old Rails monolith in Go. Our CEO wants to ship faster not slower. Our VP Eng is pushing microservices. Customer complaints about performance are rising. Budget is tight. Think carefully through what I should actually do, weighing all competing concerns and tradeoffs.",
+  "model": "sonnet",
+  "createdAt": "2026-04-24T03:45:10.211Z",
+  "root": {
+    "id": "cKKml-9P",
+    "content": "Reasoning",
+    "children": [
+      {
+        "id": "3Y3zbN-_",
+        "content": "The user is asking for strategic advice as a CTO at a 20-person startup. They want me to think carefully through what they should actually do given competing pressures. Let me check if any skills apply here.",
+        "children": [],
+        "metadata": {
+          "kind": "paragraph"
+        }
+      },
+      {
+        "id": "SHKGjuom",
+        "content": "Looking at the skill gate rules:\n- `superpowers:brainstorming` — fires for new products/features, not for analysis/advice\n- `superpowers:writing-plans` — fires when user explicitly asks to plan something\n- Neither applies here - this is a strategic advice/analysis question",
+        "children": [],
+        "metadata": {
+          "kind": "paragraph"
+        }
+      },
+      {
+        "id": "_icTjZZP",
+        "content": "No skills need to be invoked. This is a strategic/architectural question that I can answer directly. The advisor gate rules say to call advisor for \"Cross-system architecture decision (auth strategy, data model design, infra choice)\" - but this is more of a strategic business/tech decision consultation, not an implementation task. The advisor is for \"decisions that genuinely require deeper reasoning\" - this does qualify somewhat, but the guidance says \"Never call advisor for: Audits, analysis, or setup review tasks\" - this is more of an analysis/advice task.",
+        "children": [],
+        "metadata": {
+          "kind": "paragraph"
+        }
+      },
+      {
+        "id": "Qg9dXmKM",
+        "content": "Let me think through this carefully and give a direct, valuable answer. I'm looking at the core tensions here: the engineers want a Go rewrite, the CEO is focused on shipping speed, the VP Eng is pushing microservices, there are rising customer performance complaints, and the budget is tight. The real conflict is between the engineering team's technical vision and the business's need for velocity, with technical debt creating pressure from both sides.",
+        "children": [],
+        "metadata": {
+          "kind": "paragraph"
+        }
+      },
+      {
+        "id": "haWyxB7n",
+        "content": "The big rewrite is actually one of the most dangerous moves a startup can make. Joel Spolsky wrote about this years ago—rewrites discard five years of accumulated knowledge, bug fixes, and edge cases that are baked into the Rails monolith. These projects consistently balloon to three to five times their estimates, and during the rewrite you're stuck maintaining two systems simultaneously. With only twenty people, you can't afford to have a team rewriting while another team ships features the CEO needs.",
+        "children": [],
+        "metadata": {
+          "kind": "paragraph"
+        }
+      },
+      {
+        "id": "CWVKRtPQ",
+        "content": "The microservices push is another trap. Microservices solve organizational scaling problems, not performance problems—they're not a magic bullet for a startup at this size. The overhead of service discovery, distributed tracing, inter-service communication, and deployment complexity would actually slow you down more than help.",
+        "children": [],
+        "metadata": {
+          "kind": "paragraph"
+        }
+      },
+      {
+        "id": "JSsOPLwK",
+        "content": "The real issue is performance, and it needs to be diagnosed properly rather than assumed. I should figure out where the bottleneck actually is—database queries, N+1 problems, missing indexes, memory, caching, CDN configuration. Rails can get dramatic performance improvements with targeted optimization work: query tuning, Redis caching, background jobs, CDN setup, database indexes. You can often squeeze out ten to a hundred times better performance without touching the core architecture.",
+        "children": [],
+        "metadata": {
+          "kind": "paragraph"
+        }
+      },
+      {
+        "id": "kYVEPU6z",
+        "content": "What the engineers are really asking for underneath the \"let's rewrite in Go\" talk is modern tooling, room for technical growth, and relief from the accumulated pain of the Rails codebase. The language choice is a symptom, not the root cause—they're saying the Rails code itself has become painful to work with.",
+        "children": [],
+        "metadata": {
+          "kind": "paragraph"
+        }
+      },
+      {
+        "id": "lzI1zCVK",
+        "content": "The actual path forward is to diagnose the performance bottlenecks first using tools like NewRelic or Datadog, then fix them with targeted interventions like database optimization, Redis caching, Sidekiq for background jobs, and CDN for static assets. Most Rails performance issues resolve in weeks with this approach. A full rewrite is almost certainly the wrong move—it would take twelve to twenty-four months minimum for a five-year-old monolith, and during that time the codebase keeps degrading.",
+        "children": [],
+        "metadata": {
+          "kind": "paragraph"
+        }
+      },
+      {
+        "id": "Bj5MUwhN",
+        "content": "At twenty people, microservices are premature; instead, aim for a modular monolith pattern that aligns with your actual team structure. The right strategy is the Strangler Fig pattern: clean up the Rails monolith internally, identify the one or two genuine performance bottlenecks, and extract only those as separate services if they're truly performance-critical and not just rewrites.",
+        "children": [],
+        "metadata": {
+          "kind": "paragraph"
+        }
+      },
+      {
+        "id": "y26fmAhA",
+        "content": "For the people side, give engineers a tech debt sprint to modernize Rails while letting one team build a small Go service if there's a legitimate hot-path use case. Frame the modular monolith approach to leadership as the responsible path to microservices, and focus the CEO on quick wins—database and caching fixes in weeks, not months of rewrites.",
+        "children": [],
+        "metadata": {
+          "kind": "paragraph"
+        }
+      },
+      {
+        "id": "Gye87RGT",
+        "content": "The real plan: ship performance improvements in 2-4 weeks, keep the monolith, introduce Go for one service if justified, and use the parallel time to improve Rails developer experience. Then reassess the architecture once the team grows to 40+ engineers.",
+        "children": [],
+        "metadata": {
+          "kind": "paragraph"
+        }
+      }
+    ],
+    "metadata": {
+      "kind": "root"
+    }
+  },
+  "finalText": "Session: cto_architecture_decision\n\n**Don't rewrite. Don't do microservices. Fix the actual problem.**\n\nHere's the clear-eyed breakdown:\n\n---\n\n## What's Actually Happening\n\nYou have four people wanting four different things, but only one of them is a real, customer-confirmed problem: **performance**. The rest are preferences dressed up as solutions.\n\n---\n\n## The Rewrite Trap\n\nA full Rails → Go rewrite on a 5-year monolith will take **12–24 months minimum**, not the 3-6 your engineers are imagining. That monolith contains 5 years of business logic, edge cases, and bug fixes that nobody documented. You will rediscover all of them the hard way, in production, during the rewrite.\n\nDuring the rewrite you maintain two systems, ship zero new features effectively, and burn runway. At 20 people and tight budget, this is existential risk.\n\nJoel Spolsky called full rewrites \"the single worst strategic mistake a software company can make.\" He's still right.\n\n---\n\n## The Microservices Trap\n\nMicroservices are an **organizational scaling solution**, not a performance solution. They solve the problem of 200 engineers stepping on each other. You have 20.\n\nThe overhead — service discovery, distributed tracing, inter-service auth, deployment complexity, on-call burden — will make you ship *slower*, not faster. Sam Newman (wrote the book on microservices) explicitly says: don't start with them.\n\n---\n\n## What to Actually Do\n\n**Week 1–2: Diagnose before deciding anything.**\n\nInstall Skylight, Scout, or rack-mini-profiler. I'd bet significant money that 80%+ of your performance complaints come from:\n- N+1 queries\n- Missing database indexes\n- Unoptimized queries (no eager loading)\n- No caching layer\n\nYou don't know yet. Find out.\n\n**Weeks 2–6: Fix the actual bottlenecks.**\n\nTargeted Rails performance work typically yields 10–100x improvements without a rewrite:\n- Fix N+1s with `includes`/`preload`\n- Add missing indexes\n- Add Redis caching for hot paths\n- Move slow work to Sidekiq background jobs\n- CDN for static assets\n\nThis ships fast, directly addresses customer complaints, and gives the CEO the \"shipping faster\" win he wants.\n\n**Ongoing: Modular monolith, not microservices.**\n\nThis is the right middle path for your stage. Enforce clear module boundaries inside Rails. Separate concerns. Make the codebase less painful to work in. This is what your engineers are actually complaining about — the pain, not the language.\n\n**The one concession to Go:** If profiling reveals a genuinely CPU-bound, high-throughput hot path (image processing, WebSocket handling, a specific computation) — extract *that one thing* as a Go service. This gives your engineers something new to build, produces real results, and doesn't bet the company. One service, with a real performance rationale.\n\n---\n\n## Managing the Humans\n\n| Person | What they want | What to tell them |\n|---|---|---|\n| Engineers | Modern tech, less pain | \"We're fixing the monolith AND building one new Go service for [specific hot path]. Prove it works there first.\" |\n| VP Eng | Microservices | \"Modular monolith is how you get to microservices responsibly. Let's earn each service split.\" |\n| CEO | Ship faster | \"Performance fixes in 2-4 weeks. No big rewrite that pauses features for 18 months.\" |\n\n---\n\n## The Honest Timeline\n\n- **Now:** Profile the app. Find the real bottlenecks.\n- **Month 1:** Fix top 3 performance issues. Measurable customer impact.\n- **Month 1–3:** Modular monolith cleanup. Reduce developer pain. Maybe one small Go service.\n- **Month 12+:** Reassess microservices when you're 40+ engineers and have actual service boundary clarity.\n\n---\n\n**The meta-point:** your engineers want to use Go because the Rails codebase is painful, not because Go is inherently right. Fix the pain. Give them one green-field Go service. That buys you 18 months to grow into the architecture question properly.",
+  "tags": [
+    "hackathon",
+    "decision"
+  ],
+  "pinned": true
+}

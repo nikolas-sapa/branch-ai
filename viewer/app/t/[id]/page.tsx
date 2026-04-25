@@ -8,11 +8,19 @@ import { homedir } from "node:os";
 
 async function loadTree(id: string) {
   if (!/^[a-zA-Z0-9_-]+$/.test(id)) throw new Error("invalid id");
+  // 1. Local user sessions (~/.branch/sessions/)
   try {
     const path = join(homedir(), ".branch", "sessions", `${id}.json`);
     const raw = await readFile(path, "utf8");
     return JSON.parse(raw);
   } catch {}
+  // 2. Bundled gallery sessions (viewer/public/gallery-sessions/) — works on hosted deploy
+  try {
+    const path = join(process.cwd(), "public", "gallery-sessions", `${id}.json`);
+    const raw = await readFile(path, "utf8");
+    return JSON.parse(raw);
+  } catch {}
+  // 3. Optional Vercel Blob fallback
   const blobBase = process.env.BRANCH_BLOB_BASE;
   if (blobBase) {
     const url = `${blobBase.replace(/\/$/, "")}/branch-sessions/${id}.json`;

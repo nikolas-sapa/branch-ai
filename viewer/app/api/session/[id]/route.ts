@@ -11,13 +11,19 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
   if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
     return NextResponse.json({ error: "invalid id" }, { status: 400 });
   }
-  // Try local first
+  // 1. Local user sessions
   try {
     const path = join(homedir(), ".branch", "sessions", `${id}.json`);
     const raw = await readFile(path, "utf8");
     return NextResponse.json(JSON.parse(raw));
   } catch {}
-  // Fallback to blob
+  // 2. Bundled gallery sessions
+  try {
+    const path = join(process.cwd(), "public", "gallery-sessions", `${id}.json`);
+    const raw = await readFile(path, "utf8");
+    return NextResponse.json(JSON.parse(raw));
+  } catch {}
+  // 3. Optional Blob fallback
   if (BLOB_BASE) {
     try {
       const url = `${BLOB_BASE.replace(/\/$/, "")}/${BLOB_PREFIX}/${id}.json`;
