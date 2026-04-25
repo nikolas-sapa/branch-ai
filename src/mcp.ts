@@ -85,7 +85,7 @@ function validateSessionId(id: any): id is string {
 }
 
 const server = new Server(
-  { name: "branch", version: "0.7.1" },
+  { name: "branch", version: "0.7.3" },
   { capabilities: { tools: {} } }
 );
 
