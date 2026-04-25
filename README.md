@@ -129,6 +129,12 @@ branch-ai/
 - Session IDs are validated with `^[a-zA-Z0-9_-]+$` before being used in file-system paths, preventing path traversal.
 - Prompts are passed as positional argv items to `claude` (not shell-interpolated), so they are not subject to shell injection.
 
+## Real-time presence
+
+Branch supports multi-user presence on the same session URL. Open the same viewer link in two browsers and you'll see each other's cursors and selected nodes live.
+
+The viewer uses Yjs awareness over a tiny WebSocket server (no auth, no persistence). The dev script starts both the Next.js viewer and the WS server with `npm run viewer`. Custom port: `BRANCH_WS_PORT=7434 npm run viewer`. Custom WS URL on the client: `NEXT_PUBLIC_BRANCH_WS_URL=ws://your-host:7433`.
+
 ## Contributing
 
 PRs welcome. Please run `npm test` before submitting.
