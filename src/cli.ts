@@ -2,6 +2,7 @@
 import { branch, branchStream, countNodes as countNodesLib } from "./index.js";
 import { sessionPath, loadSession } from "./session.js";
 import { toMarkdown, toMermaid } from "./export.js";
+import { uploadSession } from "./blob.js";
 import { spawn } from "node:child_process";
 import { platform, homedir } from "node:os";
 import { existsSync } from "node:fs";
@@ -72,6 +73,27 @@ function countNodes(n: any): number {
   return countNodesLib(n);
 }
 
+async function runShare(args: string[]) {
+  const sessionId = args[0];
+  if (!sessionId) {
+    console.error("Usage: branch share <sessionId>");
+    console.error("Set BLOB_READ_WRITE_TOKEN env var first (https://vercel.com/dashboard/stores)");
+    process.exit(1);
+  }
+  const tree = await loadSession(sessionId);
+  console.log(`Uploading session ${sessionId} ...`);
+  try {
+    const url = await uploadSession(tree);
+    console.log(`Public URL:`);
+    console.log(`  ${url}`);
+    console.log(`\nIf you have a viewer running with BRANCH_BLOB_BASE configured, share:`);
+    console.log(`  ${process.env.BRANCH_VIEWER_URL ?? "https://your-viewer.example.com"}/t/${sessionId}?source=blob`);
+  } catch (err: any) {
+    console.error(`Upload failed: ${err.message}`);
+    process.exit(1);
+  }
+}
+
 async function runExport(args: string[]) {
   const sessionId = args[0];
   if (!sessionId) {
@@ -135,7 +157,8 @@ async function runDefault(args: string[]) {
   branch [--model sonnet|opus|haiku] [--no-open] [--stream] "your prompt"
   branch list [--limit N]
   branch export <sessionId> [--format markdown|mermaid]
-  branch diff <sessionA> <sessionB>`);
+  branch diff <sessionA> <sessionB>
+  branch share <sessionId>`);
     process.exit(1);
   }
   const joined = prompt.join(" ");
@@ -220,6 +243,7 @@ async function main() {
   if (args[0] === "export") return runExport(args.slice(1));
   if (args[0] === "list") return runList(args.slice(1));
   if (args[0] === "diff") return runDiff(args.slice(1));
+  if (args[0] === "share") return runShare(args.slice(1));
   return runDefault(args);
 }
 

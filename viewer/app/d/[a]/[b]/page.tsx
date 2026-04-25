@@ -5,11 +5,22 @@ import { homedir } from "node:os";
 
 async function loadTree(id: string) {
   if (!/^[a-zA-Z0-9_-]+$/.test(id)) throw new Error("invalid id");
-  const raw = await readFile(
-    join(homedir(), ".branch", "sessions", `${id}.json`),
-    "utf8"
-  );
-  return JSON.parse(raw);
+  // Local first
+  try {
+    const raw = await readFile(
+      join(homedir(), ".branch", "sessions", `${id}.json`),
+      "utf8"
+    );
+    return JSON.parse(raw);
+  } catch {}
+  // Blob fallback
+  const blobBase = process.env.BRANCH_BLOB_BASE;
+  if (blobBase) {
+    const url = `${blobBase.replace(/\/$/, "")}/branch-sessions/${id}.json`;
+    const res = await fetch(url);
+    if (res.ok) return await res.json();
+  }
+  throw new Error(`session ${id} not found locally or in blob storage`);
 }
 
 export default async function DiffPage({

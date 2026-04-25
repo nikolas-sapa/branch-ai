@@ -70,6 +70,31 @@ Restart Claude Code. From inside any CC session you'll have:
 - `branch_think({ prompt, model? })` — externalize Claude's own reasoning as a tree. Returns viewer URL.
 - `branch_list_sessions({ limit? })` — recent trees.
 
+## Hosted mode (optional)
+
+By default Branch is local-only. To share sessions with people who don't have your machine, use Vercel Blob storage.
+
+**Setup (one-time, free tier):**
+1. Create a free [Vercel account](https://vercel.com)
+2. Create a Blob store at https://vercel.com/dashboard/stores → Create → Blob
+3. Copy the `BLOB_READ_WRITE_TOKEN` from the store settings
+4. Note the store base URL (something like `https://abc123.public.blob.vercel-storage.com`)
+
+**Use:**
+```bash
+export BLOB_READ_WRITE_TOKEN=vercel_blob_rw_xxxxxxxx
+branch share <sessionId>
+# Prints a public URL anyone can fetch
+```
+
+**Self-hosted viewer:**
+Deploy the `viewer/` directory to Vercel. Set `BRANCH_BLOB_BASE=https://abc123.public.blob.vercel-storage.com` in the deployment env. The viewer will fall back to fetching from blob storage when a session isn't found locally.
+
+### Environment variables (hosted mode)
+
+- `BLOB_READ_WRITE_TOKEN` — Vercel Blob token for `branch share`. Required only when uploading.
+- `BRANCH_BLOB_BASE` — base URL of your Blob store. Set on the viewer deployment so it can serve shared sessions.
+
 ## How it works
 
 1. CLI spawns `claude --output-format=stream-json --verbose --print "<prompt>"`

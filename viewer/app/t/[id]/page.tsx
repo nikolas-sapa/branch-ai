@@ -4,9 +4,21 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 
 async function loadTree(id: string) {
-  const path = join(homedir(), ".branch", "sessions", `${id}.json`);
-  const raw = await readFile(path, "utf8");
-  return JSON.parse(raw);
+  if (!/^[a-zA-Z0-9_-]+$/.test(id)) throw new Error("invalid id");
+  // Local first
+  try {
+    const path = join(homedir(), ".branch", "sessions", `${id}.json`);
+    const raw = await readFile(path, "utf8");
+    return JSON.parse(raw);
+  } catch {}
+  // Blob fallback
+  const blobBase = process.env.BRANCH_BLOB_BASE;
+  if (blobBase) {
+    const url = `${blobBase.replace(/\/$/, "")}/branch-sessions/${id}.json`;
+    const res = await fetch(url);
+    if (res.ok) return await res.json();
+  }
+  throw new Error(`session ${id} not found locally or in blob storage`);
 }
 
 export default async function TreePage({ params }: { params: Promise<{ id: string }> }) {

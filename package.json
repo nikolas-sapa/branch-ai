@@ -1,6 +1,6 @@
 {
   "name": "branch-ai",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "A collaborative canvas for AI reasoning. Wraps the Claude Code CLI to capture extended thinking as a navigable, forkable tree.",
   "type": "module",
   "bin": {
@@ -48,6 +48,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@vercel/blob": "^2.3.3",
     "execa": "^9.5.0",
     "nanoid": "^5.0.0",
     "zod": "^3.24.0"
