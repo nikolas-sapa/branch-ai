@@ -4,6 +4,11 @@ interface TreeNode {
   id: string;
   content: string;
   children: TreeNode[];
+  metadata?: {
+    kind?: string;
+    forkedFrom?: string;
+    injectedFact?: string;
+  };
 }
 
 export function layoutTree(root: TreeNode): { nodes: RFNode[]; edges: RFEdge[] } {
@@ -23,7 +28,12 @@ export function layoutTree(root: TreeNode): { nodes: RFNode[]; edges: RFEdge[] }
     nodes.push({
       id: n.id,
       position: { x: nodeX, y: depth * LEVEL_H },
-      data: { content: n.content, depth },
+      data: {
+        content: n.content,
+        depth,
+        forkedFrom: n.metadata?.forkedFrom,
+        injectedFact: n.metadata?.injectedFact,
+      },
       type: "card",
     });
     let childX = x;

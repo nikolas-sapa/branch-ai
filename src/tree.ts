@@ -22,6 +22,9 @@ export const TreeSchema = z.object({
   createdAt: z.string(),
   root: NodeSchema,
   finalText: z.string(),
+  tags: z.array(z.string()).default([]).optional(),
+  pinned: z.boolean().default(false).optional(),
+  incomplete: z.boolean().default(false).optional(),
 });
 
 export type Node = z.infer<typeof NodeSchema>;

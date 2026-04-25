@@ -8,8 +8,16 @@ export function NodeCard(props: NodeProps) {
     hasChildren: boolean;
     collapsed: boolean;
     onToggle?: () => void;
+    forkedFrom?: string;
+    injectedFact?: string;
   };
   const isRoot = data.depth === 0;
+  const provenance = data.forkedFrom
+    ? `forked at: ${data.forkedFrom.slice(0, 40)}${data.forkedFrom.length > 40 ? "…" : ""}`
+    : data.injectedFact
+    ? `injected: ${data.injectedFact.slice(0, 40)}${data.injectedFact.length > 40 ? "…" : ""}`
+    : null;
+
   return (
     <div
       className={`px-4 py-3 rounded-lg border text-sm max-w-[280px] shadow-sm relative ${
@@ -17,6 +25,11 @@ export function NodeCard(props: NodeProps) {
       }`}
     >
       <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
+      {provenance && (
+        <p className="text-xs italic text-neutral-400 mb-2 leading-snug border-l-2 border-neutral-200 pl-2">
+          &#8627; {provenance}
+        </p>
+      )}
       <div className="whitespace-pre-wrap">
         {data.content.length > 220 ? data.content.slice(0, 220) + "…" : data.content}
       </div>

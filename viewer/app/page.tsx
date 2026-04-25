@@ -1,7 +1,10 @@
 "use client";
 
-import { useState, useRef, FormEvent } from "react";
+import { useState, useRef, FormEvent, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+
+type SearchResult = { sessionId: string; prompt: string; model: string; createdAt: string; score: number };
 
 export default function Home() {
   const router = useRouter();
@@ -11,6 +14,28 @@ export default function Home() {
   const [thinkingText, setThinkingText] = useState("");
   const [status, setStatus] = useState("");
   const abortRef = useRef<AbortController | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleSearch = useCallback(async (q: string) => {
+    if (!q.trim()) { setSearchResults(null); return; }
+    setSearching(true);
+    try {
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}`);
+      const data = await res.json();
+      setSearchResults(data.results ?? []);
+    } catch { setSearchResults([]); }
+    setSearching(false);
+  }, []);
+
+  function onSearchChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const val = e.target.value;
+    setSearchQuery(val);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => handleSearch(val), 300);
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -162,6 +187,48 @@ export default function Home() {
             branch &quot;your question&quot;
           </code>{" "}
           in your terminal — both save to the same session store.
+        </div>
+
+        {/* Search */}
+        <div className="space-y-3">
+          <div className="relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={onSearchChange}
+              placeholder="Search past sessions…"
+              className="w-full rounded-lg border border-neutral-200 bg-white px-4 py-2 text-sm
+                         placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-300"
+            />
+            {searching && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-400">
+                searching…
+              </span>
+            )}
+          </div>
+
+          {searchResults !== null && (
+            <div className="space-y-2">
+              {searchResults.length === 0 ? (
+                <p className="text-sm text-neutral-400 text-center py-2">No sessions match &ldquo;{searchQuery}&rdquo;</p>
+              ) : (
+                searchResults.map((r) => (
+                  <Link
+                    key={r.sessionId}
+                    href={`/t/${r.sessionId}`}
+                    className="block rounded-lg border border-neutral-200 bg-white px-4 py-3 hover:border-neutral-400 transition-colors"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-mono text-neutral-400">{r.sessionId}</span>
+                      <span className="text-xs text-neutral-300">{r.model}</span>
+                    </div>
+                    <p className="text-sm text-neutral-700 mt-1 truncate">{r.prompt}</p>
+                    <p className="text-xs text-neutral-400 mt-0.5">{new Date(r.createdAt).toLocaleString()}</p>
+                  </Link>
+                ))
+              )}
+            </div>
+          )}
         </div>
       </div>
     </main>

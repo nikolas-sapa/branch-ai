@@ -22,29 +22,53 @@ export async function* branchStream(
 > {
   const model = opts.model ?? "sonnet";
   const sessionId = nanoid(10);
+  const createdAt = new Date().toISOString();
   yield { type: "start", sessionId };
 
   let fullThinking = "";
   let fullText = "";
+  let lastPartialSave = Date.now();
+  const PARTIAL_SAVE_INTERVAL_MS = 4000;
 
-  for await (const ev of runClaudeStream({ prompt, model })) {
-    if (ev.type === "thinking_delta") {
-      const prevLen = fullThinking.length;
-      fullThinking += ev.text;
-      yield { type: "thinking_delta", text: ev.text };
-      // Emit a tree_update approximately every 200 chars of new thinking
-      const crossedBoundary = Math.floor(fullThinking.length / 200) > Math.floor(prevLen / 200);
-      if (crossedBoundary) {
-        const root = parseThinking(fullThinking);
-        yield { type: "tree_update", root };
-      }
-    } else if (ev.type === "text_delta") {
-      fullText += ev.text;
-      yield { type: "text_delta", text: ev.text };
-    } else if (ev.type === "done") {
-      fullThinking = ev.full.thinking;
-      fullText = ev.full.finalText;
+  // Keep track of the latest partial tree for SIGINT handler
+  let currentPartialTree: Tree | null = null;
+
+  const sigintHandler = async () => {
+    if (currentPartialTree) {
+      await saveSession({ ...currentPartialTree, incomplete: true }).catch(() => {});
     }
+    process.exit(130);
+  };
+  process.once("SIGINT", sigintHandler);
+
+  try {
+    for await (const ev of runClaudeStream({ prompt, model })) {
+      if (ev.type === "thinking_delta") {
+        const prevLen = fullThinking.length;
+        fullThinking += ev.text;
+        yield { type: "thinking_delta", text: ev.text };
+        // Emit a tree_update approximately every 200 chars of new thinking
+        const crossedBoundary = Math.floor(fullThinking.length / 200) > Math.floor(prevLen / 200);
+        if (crossedBoundary) {
+          const root = parseThinking(fullThinking);
+          yield { type: "tree_update", root };
+          // Periodic partial save every ~4 seconds
+          if (Date.now() - lastPartialSave >= PARTIAL_SAVE_INTERVAL_MS) {
+            currentPartialTree = { sessionId, prompt, model, createdAt, root, finalText: fullText, incomplete: true };
+            await saveSession(currentPartialTree).catch(() => {});
+            lastPartialSave = Date.now();
+          }
+        }
+      } else if (ev.type === "text_delta") {
+        fullText += ev.text;
+        yield { type: "text_delta", text: ev.text };
+      } else if (ev.type === "done") {
+        fullThinking = ev.full.thinking;
+        fullText = ev.full.finalText;
+      }
+    }
+  } finally {
+    process.off("SIGINT", sigintHandler);
   }
 
   const root = parseThinking(fullThinking);
@@ -52,9 +76,10 @@ export async function* branchStream(
     sessionId,
     prompt,
     model,
-    createdAt: new Date().toISOString(),
+    createdAt,
     root,
     finalText: fullText,
+    incomplete: false,
   };
   await saveSession(tree);
   yield { type: "done", tree };

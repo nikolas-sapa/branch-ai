@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { branch, branchStream, countNodes as countNodesLib } from "./index.js";
-import { sessionPath, loadSession } from "./session.js";
+import { sessionPath, loadSession, saveSession } from "./session.js";
 import { toMarkdown, toMermaid } from "./export.js";
 import { uploadSession } from "./blob.js";
 import { spawn } from "node:child_process";
@@ -126,18 +126,121 @@ async function runList(args: string[]) {
     console.log('No Branch sessions yet. Run: branch "your prompt"');
     return;
   }
-  for (const { file } of recent) {
+  // Load all sessions, separate pinned from unpinned
+  const loaded: Array<{ t: any; mtime: number }> = [];
+  for (const { file, mtime } of recent) {
     try {
       const raw = await readFile(file, "utf8");
-      const t = JSON.parse(raw);
-      const nodes = countNodes(t.root);
-      const when = new Date(t.createdAt).toLocaleString();
-      const promptPreview = t.prompt.length > 80 ? t.prompt.slice(0, 80) + "…" : t.prompt;
-      console.log(`\n  ${t.sessionId}  ${t.model}  ${nodes} nodes  ${when}`);
-      console.log(`    ${promptPreview}`);
-      console.log(`    ${VIEWER_URL}/t/${t.sessionId}`);
+      loaded.push({ t: JSON.parse(raw), mtime });
     } catch { /* skip malformed */ }
   }
+  // Pinned first, then by recency
+  loaded.sort((a, b) => {
+    if (a.t.pinned && !b.t.pinned) return -1;
+    if (!a.t.pinned && b.t.pinned) return 1;
+    return b.mtime - a.mtime;
+  });
+  for (const { t } of loaded) {
+    const nodes = countNodes(t.root);
+    const when = new Date(t.createdAt).toLocaleString();
+    const promptPreview = t.prompt.length > 80 ? t.prompt.slice(0, 80) + "…" : t.prompt;
+    const pin = t.pinned ? " \x1b[33m★\x1b[0m" : "";
+    const inc = t.incomplete ? " \x1b[33m(incomplete)\x1b[0m" : "";
+    const tags = t.tags && t.tags.length > 0 ? `  \x1b[36m[${t.tags.join(", ")}]\x1b[0m` : "";
+    console.log(`\n  ${t.sessionId}${pin}${inc}  ${t.model}  ${nodes} nodes  ${when}${tags}`);
+    console.log(`    ${promptPreview}`);
+    console.log(`    ${VIEWER_URL}/t/${t.sessionId}`);
+  }
+}
+
+async function runSearch(args: string[]) {
+  const query = args.join(" ").trim().toLowerCase();
+  if (!query) {
+    console.error("Usage: branch search <query>");
+    process.exit(1);
+  }
+  const dir = join(homedir(), ".branch", "sessions");
+  let files: string[] = [];
+  try { files = await readdir(dir); } catch { files = []; }
+
+  function flattenContent(n: any): string[] {
+    const kids: string[] = (n.children ?? []).flatMap(flattenContent);
+    return [n.content ?? "", ...kids];
+  }
+
+  function scoreText(haystack: string): number {
+    const h = haystack.toLowerCase();
+    // Exact phrase match = full score
+    if (h.includes(query)) return 1;
+    // Token match — fraction of query tokens present
+    const tokens = query.split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return 0;
+    const matched = tokens.filter((tok) => h.includes(tok)).length;
+    return matched / tokens.length;
+  }
+
+  const RESET = "\x1b[0m";
+  const BOLD = "\x1b[1m";
+  const YELLOW = "\x1b[33m";
+
+  function highlight(text: string): string {
+    // Highlight exact query occurrences
+    const idx = text.toLowerCase().indexOf(query);
+    if (idx === -1) return text;
+    return text.slice(0, idx) + YELLOW + BOLD + text.slice(idx, idx + query.length) + RESET + text.slice(idx + query.length);
+  }
+
+  const matches: { t: any; score: number }[] = [];
+  for (const f of files) {
+    if (!f.endsWith(".json")) continue;
+    try {
+      const raw = await readFile(join(dir, f), "utf8");
+      const t = JSON.parse(raw);
+      const haystack = [t.prompt ?? "", t.finalText ?? "", ...flattenContent(t.root)].join(" ");
+      const s = scoreText(haystack);
+      if (s > 0) matches.push({ t, score: s });
+    } catch { /* skip */ }
+  }
+
+  matches.sort((a, b) => b.score - a.score);
+
+  if (matches.length === 0) {
+    console.log(`No sessions match "${query}"`);
+    return;
+  }
+
+  for (const { t, score } of matches.slice(0, 20)) {
+    const when = new Date(t.createdAt).toLocaleString();
+    const promptDisplay = highlight(t.prompt.slice(0, 100));
+    console.log(`\n  ${t.sessionId}  ${t.model}  score:${score.toFixed(2)}  ${when}`);
+    console.log(`    ${promptDisplay}`);
+    console.log(`    ${VIEWER_URL}/t/${t.sessionId}`);
+  }
+}
+
+async function runTag(args: string[]) {
+  const sessionId = args[0];
+  const tags = args.slice(1);
+  if (!sessionId || tags.length === 0) {
+    console.error("Usage: branch tag <sessionId> <tag1> [tag2 ...]");
+    process.exit(1);
+  }
+  const tree = await loadSession(sessionId);
+  (tree as any).tags = Array.from(new Set([...((tree as any).tags ?? []), ...tags]));
+  await saveSession(tree);
+  console.log(`Tagged ${sessionId}: ${(tree as any).tags.join(", ")}`);
+}
+
+async function runPin(args: string[], pinned: boolean) {
+  const sessionId = args[0];
+  if (!sessionId) {
+    console.error(`Usage: branch ${pinned ? "pin" : "unpin"} <sessionId>`);
+    process.exit(1);
+  }
+  const tree = await loadSession(sessionId);
+  (tree as any).pinned = pinned;
+  await saveSession(tree);
+  console.log(`${pinned ? "Pinned" : "Unpinned"}: ${sessionId}`);
 }
 
 async function runDefault(args: string[]) {
@@ -243,6 +346,10 @@ async function main() {
   if (args[0] === "list") return runList(args.slice(1));
   if (args[0] === "diff") return runDiff(args.slice(1));
   if (args[0] === "share") return runShare(args.slice(1));
+  if (args[0] === "search") return runSearch(args.slice(1));
+  if (args[0] === "tag") return runTag(args.slice(1));
+  if (args[0] === "pin") return runPin(args.slice(1), true);
+  if (args[0] === "unpin") return runPin(args.slice(1), false);
   return runDefault(args);
 }
 
