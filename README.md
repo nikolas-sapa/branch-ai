@@ -65,6 +65,9 @@ Sessions are saved to `~/.branch/sessions/<id>.json`. The viewer reads them from
 | `branch diff <a> <b>` | Compare two sessions |
 | `branch tag <id> <tag>` | Tag a session |
 | `branch pin <id>` | Pin a session to the top of the list |
+| `branch replay <id> [--model X]` | Re-run a session's original prompt (optionally with a different model) and link the new run back to the source |
+| `branch merge <a> <b>` | Synthesize two sessions into a third — finds agreement, divergence, and a unified answer |
+| `branch watch on\|off\|status` | Install/remove a Claude Code Stop hook that auto-saves every CC session as a Branch tree |
 
 ### Environment variables
 
@@ -85,6 +88,16 @@ branch decide <id> --conclusion "Build modular monolith" --rejected "Microservic
 
 Decisions show up in `branch list` with a `[decided]` marker and the conclusion line. `branch decisions` shows only settled questions. The viewer renders a decision card at the top of the session.
 
+## Gallery
+
+The viewer ships a `/gallery` route with curated reasoning examples you can explore in the tree canvas:
+
+```
+http://localhost:7432/gallery
+```
+
+Click any card to open the full session — fork from any node, add a new fact, or compare with `branch diff`. The gallery is hardcoded in `viewer/lib/gallery.ts`; swap in your own session IDs to feature your own reasoning.
+
 ## MCP server — use Branch from inside Claude Code
 
 Add this to `~/.claude.json` under `mcpServers`:
@@ -101,6 +114,8 @@ Restart Claude Code. From inside any CC session you'll have:
 
 - `branch_think({ prompt, model? })` — externalize Claude's own reasoning as a tree. Returns viewer URL.
 - `branch_list_sessions({ limit? })` — recent trees.
+- `branch_fork({ sessionId, nodeId, prompt })` — fork from any node in an existing session.
+- `branch_inject({ sessionId, nodeId, fact })` — inject a new fact at a node and re-reason from there.
 
 ## Hosted mode (optional)
 

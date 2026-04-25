@@ -6,7 +6,7 @@ import { uploadSession } from "./blob.js";
 import { spawn } from "node:child_process";
 import { platform, homedir } from "node:os";
 import { existsSync } from "node:fs";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile, writeFile, stat } from "node:fs/promises";
 import { dirname, resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as readline from "node:readline/promises";
@@ -370,6 +370,101 @@ async function runDecisions(args: string[]) {
   }
 }
 
+async function runReplay(args: string[]) {
+  const sessionId = args[0];
+  if (!sessionId) {
+    console.error("Usage: branch replay <sessionId> [--model sonnet|opus|haiku] [--no-stream]");
+    process.exit(1);
+  }
+  const modelIdx = args.indexOf("--model");
+  const model = modelIdx !== -1 ? args[modelIdx + 1] as any : undefined;
+  const original = await loadSession(sessionId);
+  console.log(`Replaying ${sessionId} with ${model ?? original.model}...`);
+  const tree = await branch(original.prompt, { model: model ?? (original.model as any) });
+  // Tag the new tree with replay provenance
+  (tree as any).tags = Array.from(new Set([...((tree as any).tags ?? []), `replay-of:${sessionId}`]));
+  await saveSession(tree);
+  console.log(`\nNew session: ${tree.sessionId}`);
+  console.log(`  Original: ${VIEWER_URL}/t/${sessionId}`);
+  console.log(`  Replay:   ${VIEWER_URL}/t/${tree.sessionId}`);
+  console.log(`  Diff:     ${VIEWER_URL}/d/${sessionId}/${tree.sessionId}`);
+}
+
+async function runMerge(args: string[]) {
+  const [aId, bId] = args;
+  if (!aId || !bId) {
+    console.error("Usage: branch merge <sessionA> <sessionB>");
+    process.exit(1);
+  }
+  const treeA = await loadSession(aId);
+  const treeB = await loadSession(bId);
+  const synthesis = await branch(
+    `You're synthesizing reasoning from two earlier explorations:
+
+ORIGINAL QUESTION A: ${treeA.prompt}
+ORIGINAL QUESTION B: ${treeB.prompt}
+
+Decision A: ${(treeA as any).decision?.conclusion ?? "(no recorded decision)"}
+Decision B: ${(treeB as any).decision?.conclusion ?? "(no recorded decision)"}
+
+Reason about: where do these two lines of thinking agree? Where do they diverge? What would a unified answer look like that respects both?`,
+    { model: treeA.model as any }
+  );
+  // Attach both source trees as siblings of synthesis root
+  (synthesis.root as any).children.push({
+    id: `src-a-${treeA.sessionId}`,
+    content: `[Source A: ${treeA.prompt.slice(0, 80)}]`,
+    children: [treeA.root],
+    metadata: { kind: "heading" as const },
+  });
+  (synthesis.root as any).children.push({
+    id: `src-b-${treeB.sessionId}`,
+    content: `[Source B: ${treeB.prompt.slice(0, 80)}]`,
+    children: [treeB.root],
+    metadata: { kind: "heading" as const },
+  });
+  (synthesis as any).tags = [...((synthesis as any).tags ?? []), `merge-of:${aId}`, `merge-of:${bId}`];
+  await saveSession(synthesis);
+  console.log(`Merged session: ${synthesis.sessionId}`);
+  console.log(`  View: ${VIEWER_URL}/t/${synthesis.sessionId}`);
+}
+
+async function runWatch(args: string[]) {
+  const action = args[0];
+  const settingsPath = join(homedir(), ".claude", "settings.json");
+  let settings: any = {};
+  try { settings = JSON.parse(await readFile(settingsPath, "utf8")); } catch {}
+
+  const hookEntry = { type: "command", command: "branch-hook" };
+
+  if (action === "on") {
+    settings.hooks ??= {};
+    settings.hooks.Stop ??= [];
+    const exists = settings.hooks.Stop.some((h: any) =>
+      h.command === "branch-hook" || (h.hooks ?? []).some((hh: any) => hh.command === "branch-hook")
+    );
+    if (!exists) {
+      settings.hooks.Stop.push({ matcher: ".*", hooks: [hookEntry] });
+    }
+    await writeFile(settingsPath, JSON.stringify(settings, null, 2), "utf8");
+    console.log("branch watch enabled — every Claude Code session will auto-save to ~/.branch/sessions/");
+  } else if (action === "off") {
+    if (settings.hooks?.Stop) {
+      settings.hooks.Stop = settings.hooks.Stop.filter((h: any) =>
+        !(h.hooks ?? []).some((hh: any) => hh.command === "branch-hook") && h.command !== "branch-hook"
+      );
+      await writeFile(settingsPath, JSON.stringify(settings, null, 2), "utf8");
+    }
+    console.log("branch watch disabled");
+  } else {
+    const enabled = (settings.hooks?.Stop ?? []).some((h: any) =>
+      h.command === "branch-hook" || (h.hooks ?? []).some((hh: any) => hh.command === "branch-hook")
+    );
+    console.log(`branch watch: ${enabled ? "ENABLED" : "disabled"}`);
+    console.log(`Settings file: ${settingsPath}`);
+  }
+}
+
 async function runDefault(args: string[]) {
   const skipOpen = args.includes("--no-open");
   const noStream = args.includes("--no-stream");
@@ -393,7 +488,10 @@ async function runDefault(args: string[]) {
   branch share <sessionId>
   branch decide <sessionId> [--conclusion "..." --rejected "X;Y" --confidence high --revisit-if "..."]
   branch decisions [--limit N]
-  branch search <query>`);
+  branch search <query>
+  branch replay <sessionId> [--model sonnet|opus|haiku]
+  branch merge <sessionA> <sessionB>
+  branch watch on|off|status`);
     process.exit(1);
   }
   const joined = prompt.join(" ");
@@ -498,6 +596,9 @@ async function main() {
   if (args[0] === "unpin") return runPin(args.slice(1), false);
   if (args[0] === "decide") return runDecide(args.slice(1));
   if (args[0] === "decisions") return runDecisions(args.slice(1));
+  if (args[0] === "replay") return runReplay(args.slice(1));
+  if (args[0] === "merge") return runMerge(args.slice(1));
+  if (args[0] === "watch") return runWatch(args.slice(1));
   return runDefault(args);
 }
 

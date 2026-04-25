@@ -118,6 +118,14 @@ export default function Home() {
           <p className="text-neutral-500 text-sm">
             Ask a question and watch the reasoning tree build in real time.
           </p>
+          <div>
+            <Link
+              href="/gallery"
+              className="text-xs text-neutral-400 hover:text-neutral-700 transition-colors"
+            >
+              Browse the gallery →
+            </Link>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">

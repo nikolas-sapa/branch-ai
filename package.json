@@ -1,11 +1,12 @@
 {
   "name": "branch-ai",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "A collaborative canvas for AI reasoning. Wraps the Claude Code CLI to capture extended thinking as a navigable, forkable tree.",
   "type": "module",
   "bin": {
     "branch": "dist/cli.js",
-    "branch-mcp": "dist/mcp.js"
+    "branch-mcp": "dist/mcp.js",
+    "branch-hook": "dist/hook.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -15,7 +16,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc && chmod +x dist/cli.js && chmod +x dist/mcp.js",
+    "build": "tsc && chmod +x dist/cli.js && chmod +x dist/mcp.js && chmod +x dist/hook.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "viewer": "cd viewer && npm install && npm run dev",
