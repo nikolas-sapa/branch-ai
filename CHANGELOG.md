@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.1.0 — 2026-05-06
+
+### Added
+
+- **Factory.ai Droid CLI adapter** (`src/adapters/droid.ts`) — 4th adapter alongside Claude, Codex, Gemini. Run `branch --cli droid "prompt"` once `droid` is on PATH.
+- **`branch mcp install <client>`** — one-command MCP server installer that wires `branch-mcp` into config files for:
+  - Claude Code (`~/.claude.json`)
+  - Claude Desktop (`claude_desktop_config.json`)
+  - Cursor (`~/.cursor/mcp.json`)
+  - Codex CLI (`~/.codex/config.toml`)
+  - Cline (`cline_mcp_settings.json`)
+- **`branch mcp install --all`** — install into every detected client at once
+- **`branch mcp uninstall <client>`** and **`branch mcp status`** — manage MCP installs
+
+### Changed
+
+- `branch doctor` now lists 4 adapters
+- README "Supported CLIs" section adds Droid
+- MCP `cli` enum on `branch_think` and `branch_replay` adds `"droid"`
+
 ## 1.0.0 — 2026-05-06
 
 ### The 1.0 release

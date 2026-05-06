@@ -61,7 +61,7 @@ async function ensureCliAvailable(cli?: string): Promise<void> {
     const detected = await detectAvailableAdapter();
     if (!detected) {
       throw new Error(
-        "No AI CLI found on PATH. Install one of: Claude Code (claude), OpenAI Codex (codex), or Google Gemini (gemini)."
+        "No AI CLI found on PATH. Install one of: Claude Code (claude), OpenAI Codex (codex), Google Gemini (gemini), or Factory.ai Droid (droid)."
       );
     }
     _cliVerified = true;
@@ -92,7 +92,7 @@ function validateSessionId(id: any): id is string {
 }
 
 const server = new Server(
-  { name: "branch", version: "1.0.0" },
+  { name: "branch", version: "1.1.0" },
   { capabilities: { tools: {} } }
 );
 
@@ -116,7 +116,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           },
           cli: {
             type: "string",
-            enum: ["claude", "codex", "gemini"],
+            enum: ["claude", "codex", "gemini", "droid"],
             description: "Which AI CLI to use. Defaults to auto-detect (first available on PATH).",
           },
         },
@@ -228,7 +228,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           model: { type: "string", description: "Model to use. Defaults to original session's model." },
           cli: {
             type: "string",
-            enum: ["claude", "codex", "gemini"],
+            enum: ["claude", "codex", "gemini", "droid"],
             description: "Which AI CLI to use. Defaults to auto-detect.",
           },
         },

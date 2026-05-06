@@ -1,14 +1,16 @@
 import { claudeAdapter } from "./claude.js";
 import { codexAdapter } from "./codex.js";
 import { geminiAdapter } from "./gemini.js";
+import { droidAdapter } from "./droid.js";
 import type { ReasoningAdapter } from "./types.js";
 
 export { claudeAdapter } from "./claude.js";
 export { codexAdapter } from "./codex.js";
 export { geminiAdapter } from "./gemini.js";
+export { droidAdapter } from "./droid.js";
 export type { ReasoningAdapter, StreamEvent } from "./types.js";
 
-export const adapters: ReasoningAdapter[] = [claudeAdapter, codexAdapter, geminiAdapter];
+export const adapters: ReasoningAdapter[] = [claudeAdapter, codexAdapter, geminiAdapter, droidAdapter];
 
 export function getAdapter(name: string): ReasoningAdapter {
   const a = adapters.find((x) => x.name === name);

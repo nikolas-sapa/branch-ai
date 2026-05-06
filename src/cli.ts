@@ -4,6 +4,7 @@ import { sessionPath, loadSession, saveSession } from "./session.js";
 import { toMarkdown, toMermaid } from "./export.js";
 import { uploadSession } from "./blob.js";
 import { adapters, detectAvailableAdapter } from "./adapters/index.js";
+import { mcpInstall, mcpInstallAll, mcpUninstall, mcpStatus } from "./mcp-install.js";
 import { spawn, execSync } from "node:child_process";
 import { platform, homedir } from "node:os";
 import { existsSync } from "node:fs";
@@ -374,7 +375,7 @@ async function runDecisions(args: string[]) {
 async function runReplay(args: string[]) {
   const sessionId = args[0];
   if (!sessionId) {
-    console.error("Usage: branch replay <sessionId> [--model <model>] [--cli claude|codex|gemini] [--no-stream]");
+    console.error("Usage: branch replay <sessionId> [--model <model>] [--cli claude|codex|gemini|droid] [--no-stream]");
     process.exit(1);
   }
   const modelIdx = args.indexOf("--model");
@@ -397,7 +398,7 @@ async function runMerge(args: string[]) {
   const positional = args.filter((a) => !a.startsWith("--") && args[args.indexOf(a) - 1] !== "--cli");
   const [aId, bId] = positional;
   if (!aId || !bId) {
-    console.error("Usage: branch merge <sessionA> <sessionB> [--cli claude|codex|gemini]");
+    console.error("Usage: branch merge <sessionA> <sessionB> [--cli claude|codex|gemini|droid]");
     process.exit(1);
   }
   const cliIdx = args.indexOf("--cli");
@@ -489,7 +490,7 @@ async function runDefault(args: string[]) {
   }
   if (prompt.length === 0) {
     console.error(`Usage:
-  branch [--model <model>] [--cli claude|codex|gemini] [--no-open] [--no-stream] [--local] "your prompt"
+  branch [--model <model>] [--cli claude|codex|gemini|droid] [--no-open] [--no-stream] [--local] "your prompt"
   branch list [--limit N]
   branch export <sessionId> [--format markdown|mermaid]
   branch diff <sessionA> <sessionB>
@@ -497,9 +498,13 @@ async function runDefault(args: string[]) {
   branch decide <sessionId> [--conclusion "..." --rejected "X;Y" --confidence high --revisit-if "..."]
   branch decisions [--limit N]
   branch search <query>
-  branch replay <sessionId> [--model <model>] [--cli claude|codex|gemini]
+  branch replay <sessionId> [--model <model>] [--cli claude|codex|gemini|droid]
   branch merge <sessionA> <sessionB>
   branch watch on|off|status
+  branch mcp install <claude-code|claude-desktop|cursor|codex|cline>
+  branch mcp install --all
+  branch mcp uninstall <client>
+  branch mcp status
   branch doctor`);
     process.exit(1);
   }
@@ -640,6 +645,32 @@ async function runDiff(args: string[]) {
   if (await viewerReachable(VIEWER_URL)) openInBrowser(url);
 }
 
+async function runMcp(args: string[]) {
+  const action = args[0];
+  if (action === "install") {
+    const client = args[1];
+    if (client === "--all") return mcpInstallAll();
+    if (!client) {
+      console.error("Usage: branch mcp install <claude-code|claude-desktop|cursor|codex|cline>");
+      console.error("       branch mcp install --all");
+      process.exit(1);
+    }
+    return mcpInstall(client);
+  }
+  if (action === "uninstall") {
+    const client = args[1];
+    if (!client) {
+      console.error("Usage: branch mcp uninstall <claude-code|claude-desktop|cursor|codex|cline>");
+      process.exit(1);
+    }
+    return mcpUninstall(client);
+  }
+  if (action === "status") return mcpStatus();
+  console.error("Usage: branch mcp <install|uninstall|status> [client]");
+  console.error("       branch mcp install --all");
+  process.exit(1);
+}
+
 async function main() {
   const args = process.argv.slice(2);
   if (args[0] === "export") return runExport(args.slice(1));
@@ -655,6 +686,7 @@ async function main() {
   if (args[0] === "replay") return runReplay(args.slice(1));
   if (args[0] === "merge") return runMerge(args.slice(1));
   if (args[0] === "watch") return runWatch(args.slice(1));
+  if (args[0] === "mcp") return runMcp(args.slice(1));
   if (args[0] === "doctor") return runDoctor();
   return runDefault(args);
 }

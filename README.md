@@ -1,6 +1,6 @@
 # branch-ai
 
-**The reasoning canvas for any AI CLI.** Works with Claude Code, OpenAI Codex, or Google Gemini — captures each tool's reasoning as a navigable, forkable tree. Walk backward through the thinking, explore alternative paths from any point, or add a new fact mid-thought and watch how the conclusion changes.
+**The reasoning canvas for any AI CLI.** Works with Claude Code, OpenAI Codex, Google Gemini, or Factory.ai Droid — captures each tool's reasoning as a navigable, forkable tree. Walk backward through the thinking, explore alternative paths from any point, or add a new fact mid-thought and watch how the conclusion changes.
 
 **See it live:** Try the [public demo](https://branchai-fawn.vercel.app) — view real reasoning trees. To create your own and fork them, install locally below.
 
@@ -13,6 +13,7 @@
 - **Claude Code** — full thinking-block capture (richest reasoning)
 - **OpenAI Codex CLI** — captures reasoning summaries from o3 / gpt-5
 - **Google Gemini CLI** — captures Flash thinking-mode output
+- **Factory.ai Droid** — routes across underlying models; captures thinking when the routed model supports it
 
 Run `branch doctor` after install to see which are available on your PATH.
 
@@ -31,6 +32,7 @@ Run `branch doctor` after install to see which are available on your PATH.
   - **Claude Code** signed in (Claude Pro, Max, or Team subscription)
   - **OpenAI Codex CLI** (`codex` binary)
   - **Google Gemini CLI** (`gemini` binary)
+  - **Factory.ai Droid** (`droid` binary)
 - Branch uses your existing CLI auth — no API keys required by Branch itself
 
 ## Install
@@ -55,11 +57,11 @@ branch "Should I deploy on Friday afternoon? Think carefully through the tradeof
 ## CLI
 
 ```
-branch [--cli claude|codex|gemini] [--model <model>] [--local] "your prompt"
+branch [--cli claude|codex|gemini|droid] [--model <model>] [--local] "your prompt"
 ```
 
 - **`--cli`** — pick an AI CLI. Defaults to auto-detect (first available on PATH).
-- **`--model`** — model name (each adapter has its own defaults; e.g. `sonnet` for Claude, `gpt-5` for Codex, `gemini-2.5-flash` for Gemini)
+- **`--model`** — model name (each adapter has its own defaults; e.g. `sonnet` for Claude, `gpt-5` for Codex, `gemini-2.5-flash` for Gemini, `default` for Droid)
 - **`--local`** — skip auto-sharing for a single run when `BRANCH_AUTO_SHARE=1` is set (auto-share is OFF by default — see Privacy section)
 
 Run `branch doctor` to see which CLIs are available and which Branch will use by default.
@@ -83,6 +85,10 @@ Sessions are saved to `~/.branch/sessions/<id>.json`. The viewer reads them from
 | `branch replay <id> [--model X]` | Re-run a session's original prompt (optionally with a different model) and link the new run back to the source |
 | `branch merge <a> <b>` | Synthesize two sessions into a third — finds agreement, divergence, and a unified answer |
 | `branch watch on\|off\|status` | Install/remove a Claude Code Stop hook that auto-saves every CC session as a Branch tree |
+| `branch mcp install <client>` | Add the branch-mcp server to a client's config file (claude-code, claude-desktop, cursor, codex, cline) |
+| `branch mcp install --all` | Install branch-mcp into every supported client at once |
+| `branch mcp uninstall <client>` | Remove branch-mcp from a client's config |
+| `branch mcp status` | Show which clients have branch-mcp installed |
 
 ### Environment variables
 
