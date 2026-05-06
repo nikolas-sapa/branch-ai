@@ -8,13 +8,11 @@ import {
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { execSync } from "node:child_process";
 import { branch } from "./index.js";
 import { sessionPath, loadSession, saveSession } from "./session.js";
 import { parseThinking } from "./parser.js";
 import { buildForkPrompt } from "./fork.js";
 import { buildInjectPrompt } from "./inject.js";
-import { runClaude } from "./claude.js";
 import { toMarkdown, toMermaid } from "./export.js";
 import { uploadSession } from "./blob.js";
 import { diffTrees, diffSummary } from "./diff.js";
@@ -47,17 +45,26 @@ function releaseSemaphore(): void {
   if (next) next();
 }
 
-/** Verify `claude` binary is on PATH — called once, lazily, on first tool invocation. */
-let _claudeVerified = false;
-function ensureClaudeBinary(): void {
-  if (_claudeVerified) return;
-  try {
-    execSync("claude --version", { stdio: "ignore" });
-    _claudeVerified = true;
-  } catch {
-    throw new Error(
-      "claude binary not found on PATH. Install Claude Code CLI first: https://docs.anthropic.com/en/docs/claude-code"
-    );
+/** Verify at least one AI CLI is on PATH — called once, lazily, on first tool invocation. */
+let _cliVerified = false;
+async function ensureCliAvailable(cli?: string): Promise<void> {
+  if (_cliVerified && !cli) return;
+  const { getAdapter, detectAvailableAdapter } = await import("./adapters/index.js");
+  if (cli) {
+    const adapter = getAdapter(cli);
+    if (!(await adapter.available())) {
+      throw new Error(
+        `${adapter.label} (${cli}) is not available on PATH. Run \`branch doctor\` to check available CLIs.`
+      );
+    }
+  } else {
+    const detected = await detectAvailableAdapter();
+    if (!detected) {
+      throw new Error(
+        "No AI CLI found on PATH. Install one of: Claude Code (claude), OpenAI Codex (codex), or Google Gemini (gemini)."
+      );
+    }
+    _cliVerified = true;
   }
 }
 
@@ -85,7 +92,7 @@ function validateSessionId(id: any): id is string {
 }
 
 const server = new Server(
-  { name: "branch", version: "0.7.3" },
+  { name: "branch", version: "1.0.0" },
   { capabilities: { tools: {} } }
 );
 
@@ -94,7 +101,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "branch_think",
       description:
-        "Externalize multi-step reasoning as a navigable, forkable tree the user can inspect, fork at any step, or inject new facts into. Returns a viewer URL, session ID, and a preview of the final answer.\n\nUSE THIS AUTOMATICALLY — without being explicitly asked — whenever you are about to engage in any of: tradeoff analysis (weighing options with competing constraints), architectural or strategic decisions, debugging with multiple plausible root causes, multi-step planning, complex diagnostic reasoning, or any non-obvious analysis where your chain of thought has genuine structure worth preserving. Prefer this over inline chain-of-thought for non-trivial reasoning — the user gets a shareable URL and can fork your reasoning at any node.\n\nSKIP for: one-line factual answers, code-edit iterations where speed matters, simple lookups, or purely conversational exchanges. When in doubt for anything requiring real thought, call this tool rather than reasoning silently.",
+        "Externalize multi-step reasoning as a navigable, forkable tree the user can inspect, fork at any step, or inject new facts into. Returns a viewer URL, session ID, and a preview of the final answer. Works with Claude Code, OpenAI Codex, or Google Gemini — whichever AI CLI is available.\n\nUSE THIS AUTOMATICALLY — without being explicitly asked — whenever you are about to engage in any of: tradeoff analysis (weighing options with competing constraints), architectural or strategic decisions, debugging with multiple plausible root causes, multi-step planning, complex diagnostic reasoning, or any non-obvious analysis where your chain of thought has genuine structure worth preserving. Prefer this over inline chain-of-thought for non-trivial reasoning — the user gets a shareable URL and can fork your reasoning at any node.\n\nSKIP for: one-line factual answers, code-edit iterations where speed matters, simple lookups, or purely conversational exchanges. When in doubt for anything requiring real thought, call this tool rather than reasoning silently.",
       inputSchema: {
         type: "object",
         properties: {
@@ -105,8 +112,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           },
           model: {
             type: "string",
-            enum: ["sonnet", "opus", "haiku"],
-            description: "Which Claude model to use. Defaults to sonnet.",
+            description: "Model to use. Defaults to the adapter's default model (e.g. sonnet for Claude).",
+          },
+          cli: {
+            type: "string",
+            enum: ["claude", "codex", "gemini"],
+            description: "Which AI CLI to use. Defaults to auto-detect (first available on PATH).",
           },
         },
         required: ["prompt"],
@@ -209,12 +220,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "branch_replay",
       description:
-        "Re-run a previous session's original prompt with a (possibly different) Claude model. Useful when a newer model is available and you want to see how its reasoning differs. The result is a fresh session tagged 'replay-of:<originalId>' linking back to the original. Returns the new sessionId and a diff URL.",
+        "Re-run a previous session's original prompt with a (possibly different) model or AI CLI. Useful when a newer model is available and you want to see how its reasoning differs. The result is a fresh session tagged 'replay-of:<originalId>' linking back to the original. Returns the new sessionId and a diff URL.",
       inputSchema: {
         type: "object",
         properties: {
           sessionId: { type: "string" },
-          model: { type: "string", enum: ["sonnet", "opus", "haiku"] },
+          model: { type: "string", description: "Model to use. Defaults to original session's model." },
+          cli: {
+            type: "string",
+            enum: ["claude", "codex", "gemini"],
+            description: "Which AI CLI to use. Defaults to auto-detect.",
+          },
         },
         required: ["sessionId"],
       },
@@ -278,7 +294,6 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
   // ── branch_think ────────────────────────────────────────────────────────────
   if (name === "branch_think") {
-    ensureClaudeBinary();
     const rawPrompt = (args as any)?.prompt;
     if (typeof rawPrompt !== "string" || rawPrompt.trim().length === 0) {
       return { isError: true, content: [{ type: "text", text: "prompt must be a non-empty string" }] };
@@ -287,15 +302,18 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       return { isError: true, content: [{ type: "text", text: `prompt exceeds maximum length of ${MAX_PROMPT_LENGTH} characters` }] };
     }
     const rawModel = (args as any)?.model;
-    const model: AllowedModel | undefined =
-      rawModel !== undefined && ALLOWED_MODELS.includes(rawModel as AllowedModel)
-        ? (rawModel as AllowedModel)
-        : undefined;
+    const model: string | undefined = rawModel !== undefined ? String(rawModel) : undefined;
+    const rawCli = (args as any)?.cli;
+    const cli: string | undefined = rawCli !== undefined ? String(rawCli) : undefined;
+
+    try { await ensureCliAvailable(cli); } catch (err: any) {
+      return { isError: true, content: [{ type: "text", text: err?.message ?? "No AI CLI available" }] };
+    }
 
     await acquireSemaphore();
     try {
       const tree = await Promise.race([
-        branch(rawPrompt, { model }),
+        branch(rawPrompt, { model, cli }),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error("branch_think timed out after 180s")), CLAUDE_TIMEOUT_MS)
         ),
@@ -361,7 +379,9 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
   // ── branch_fork / branch_inject ─────────────────────────────────────────────
   if (name === "branch_fork" || name === "branch_inject") {
-    ensureClaudeBinary();
+    try { await ensureCliAvailable(); } catch (err: any) {
+      return { isError: true, content: [{ type: "text", text: err?.message ?? "No AI CLI available" }] };
+    }
     const { sessionId, nodeId } = args as any;
     const modifierOrFact = name === "branch_fork" ? (args as any).modifier : (args as any).fact;
     if (!validateSessionId(sessionId)) {
@@ -383,9 +403,11 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
           ? buildForkPrompt({ originalPrompt: tree.prompt, tree, forkNodeId: nodeId, modifier: modifierOrFact })
           : buildInjectPrompt({ tree, nodeId, fact: modifierOrFact });
 
-      const model = ALLOWED_MODELS.includes(tree.model as AllowedModel) ? (tree.model as AllowedModel) : "sonnet";
+      const model = tree.model || "sonnet";
+      const { claudeAdapter } = await import("./adapters/claude.js");
+      const { runClaude: _runClaude } = await import("./adapters/claude.js");
       const result = await Promise.race([
-        runClaude({ prompt, model }),
+        _runClaude({ prompt, model }),
         new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${name} timed out after 180s`)), CLAUDE_TIMEOUT_MS)),
       ]);
 
@@ -564,24 +586,26 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
   // ── branch_replay ───────────────────────────────────────────────────────────
   if (name === "branch_replay") {
-    ensureClaudeBinary();
     const { sessionId } = args as any;
     if (!validateSessionId(sessionId)) {
       return { isError: true, content: [{ type: "text", text: "invalid sessionId" }] };
     }
     const rawModel = (args as any)?.model;
-    const chosenModel: AllowedModel | undefined =
-      rawModel !== undefined && ALLOWED_MODELS.includes(rawModel as AllowedModel)
-        ? (rawModel as AllowedModel)
-        : undefined;
+    const chosenModel: string | undefined = rawModel !== undefined ? String(rawModel) : undefined;
+    const rawCli = (args as any)?.cli;
+    const cli: string | undefined = rawCli !== undefined ? String(rawCli) : undefined;
+
+    try { await ensureCliAvailable(cli); } catch (err: any) {
+      return { isError: true, content: [{ type: "text", text: err?.message ?? "No AI CLI available" }] };
+    }
 
     await acquireSemaphore();
     try {
       const original = await loadSession(sessionId);
-      const replayModel = chosenModel ?? (ALLOWED_MODELS.includes(original.model as AllowedModel) ? (original.model as AllowedModel) : "sonnet");
+      const replayModel = chosenModel ?? original.model ?? "sonnet";
 
       const replayTree = await Promise.race([
-        branch(original.prompt, { model: replayModel }),
+        branch(original.prompt, { model: replayModel, cli }),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error("branch_replay timed out after 180s")), CLAUDE_TIMEOUT_MS)
         ),
@@ -610,10 +634,12 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
 
   // ── branch_merge ────────────────────────────────────────────────────────────
   if (name === "branch_merge") {
-    ensureClaudeBinary();
     const { sessionA, sessionB } = args as any;
     if (!validateSessionId(sessionA) || !validateSessionId(sessionB)) {
       return { isError: true, content: [{ type: "text", text: "invalid sessionA or sessionB" }] };
+    }
+    try { await ensureCliAvailable(); } catch (err: any) {
+      return { isError: true, content: [{ type: "text", text: err?.message ?? "No AI CLI available" }] };
     }
 
     await acquireSemaphore();

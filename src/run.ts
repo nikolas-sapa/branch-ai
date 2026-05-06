@@ -1,18 +1,31 @@
 import { nanoid } from "nanoid";
-import { runClaude, runClaudeStream } from "./claude.js";
-import type { AllowedModel } from "./claude.js";
 import { parseThinking } from "./parser.js";
 import { structuredParse } from "./structured-parser.js";
 import { saveSession } from "./session.js";
 import type { Tree, Node } from "./tree.js";
+import { getAdapter, detectAvailableAdapter } from "./adapters/index.js";
+import type { AllowedModel } from "./adapters/claude.js";
+
+export type { AllowedModel };
 
 export function countNodes(n: Node): number {
   return 1 + n.children.reduce((a: number, c: Node) => a + countNodes(c), 0);
 }
 
+async function resolveAdapter(cli?: string) {
+  if (cli) return getAdapter(cli);
+  const detected = await detectAvailableAdapter();
+  if (!detected) {
+    throw new Error(
+      "No AI CLI found on PATH. Install one of: Claude Code (claude), OpenAI Codex (codex), or Google Gemini (gemini). Run `branch doctor` to check."
+    );
+  }
+  return detected;
+}
+
 export async function* branchStream(
   prompt: string,
-  opts: { model?: AllowedModel } = {}
+  opts: { model?: AllowedModel | string; cli?: string } = {}
 ): AsyncGenerator<
   | { type: "start"; sessionId: string }
   | { type: "thinking_delta"; text: string }
@@ -20,7 +33,8 @@ export async function* branchStream(
   | { type: "tree_update"; root: Node }
   | { type: "done"; tree: Tree }
 > {
-  const model = opts.model ?? "sonnet";
+  const adapter = await resolveAdapter(opts.cli);
+  const model = opts.model ?? adapter.defaultModel;
   const sessionId = nanoid(10);
   const createdAt = new Date().toISOString();
   yield { type: "start", sessionId };
@@ -42,7 +56,7 @@ export async function* branchStream(
   process.once("SIGINT", sigintHandler);
 
   try {
-    for await (const ev of runClaudeStream({ prompt, model })) {
+    for await (const ev of adapter.runStream({ prompt, model })) {
       if (ev.type === "thinking_delta") {
         const prevLen = fullThinking.length;
         fullThinking += ev.text;
@@ -87,16 +101,18 @@ export async function* branchStream(
 
 export async function branch(
   prompt: string,
-  opts: { model?: AllowedModel; structured?: boolean } = {}
+  opts: { model?: AllowedModel | string; structured?: boolean; cli?: string } = {}
 ): Promise<Tree> {
-  const model = opts.model ?? "sonnet";
+  const adapter = await resolveAdapter(opts.cli);
+  const model = opts.model ?? adapter.defaultModel;
   const useStructured = opts.structured !== false; // default ON
-  const result = await runClaude({ prompt, model });
+  const result = await adapter.run({ prompt, model });
 
   const heuristicRoot = parseThinking(result.thinking);
   let root = heuristicRoot;
 
-  if (useStructured) {
+  if (useStructured && adapter.name === "claude") {
+    // Structured parsing uses a Claude-specific prompt — only run it for the Claude adapter
     const structuredRoot = await structuredParse(result.thinking);
     // Prefer structured if it has more nodes
     if (structuredRoot && countNodes(structuredRoot) > countNodes(heuristicRoot)) {

@@ -3,7 +3,8 @@ import { branch, branchStream, countNodes as countNodesLib } from "./index.js";
 import { sessionPath, loadSession, saveSession } from "./session.js";
 import { toMarkdown, toMermaid } from "./export.js";
 import { uploadSession } from "./blob.js";
-import { spawn } from "node:child_process";
+import { adapters, detectAvailableAdapter } from "./adapters/index.js";
+import { spawn, execSync } from "node:child_process";
 import { platform, homedir } from "node:os";
 import { existsSync } from "node:fs";
 import { readdir, readFile, writeFile, stat } from "node:fs/promises";
@@ -373,14 +374,16 @@ async function runDecisions(args: string[]) {
 async function runReplay(args: string[]) {
   const sessionId = args[0];
   if (!sessionId) {
-    console.error("Usage: branch replay <sessionId> [--model sonnet|opus|haiku] [--no-stream]");
+    console.error("Usage: branch replay <sessionId> [--model <model>] [--cli claude|codex|gemini] [--no-stream]");
     process.exit(1);
   }
   const modelIdx = args.indexOf("--model");
   const model = modelIdx !== -1 ? args[modelIdx + 1] as any : undefined;
+  const cliIdx = args.indexOf("--cli");
+  const cli = cliIdx !== -1 ? args[cliIdx + 1] : undefined;
   const original = await loadSession(sessionId);
-  console.log(`Replaying ${sessionId} with ${model ?? original.model}...`);
-  const tree = await branch(original.prompt, { model: model ?? (original.model as any) });
+  console.log(`Replaying ${sessionId} with ${model ?? original.model} via ${cli ?? "auto-detect"}...`);
+  const tree = await branch(original.prompt, { model: model ?? (original.model as any), cli });
   // Tag the new tree with replay provenance
   (tree as any).tags = Array.from(new Set([...((tree as any).tags ?? []), `replay-of:${sessionId}`]));
   await saveSession(tree);
@@ -391,11 +394,14 @@ async function runReplay(args: string[]) {
 }
 
 async function runMerge(args: string[]) {
-  const [aId, bId] = args;
+  const positional = args.filter((a) => !a.startsWith("--") && args[args.indexOf(a) - 1] !== "--cli");
+  const [aId, bId] = positional;
   if (!aId || !bId) {
-    console.error("Usage: branch merge <sessionA> <sessionB>");
+    console.error("Usage: branch merge <sessionA> <sessionB> [--cli claude|codex|gemini]");
     process.exit(1);
   }
+  const cliIdx = args.indexOf("--cli");
+  const cli = cliIdx !== -1 ? args[cliIdx + 1] : undefined;
   const treeA = await loadSession(aId);
   const treeB = await loadSession(bId);
   const synthesis = await branch(
@@ -408,7 +414,7 @@ Decision A: ${(treeA as any).decision?.conclusion ?? "(no recorded decision)"}
 Decision B: ${(treeB as any).decision?.conclusion ?? "(no recorded decision)"}
 
 Reason about: where do these two lines of thinking agree? Where do they diverge? What would a unified answer look like that respects both?`,
-    { model: treeA.model as any }
+    { model: treeA.model as any, cli }
   );
   // Attach both source trees as siblings of synthesis root
   (synthesis.root as any).children.push({
@@ -447,7 +453,7 @@ async function runWatch(args: string[]) {
       settings.hooks.Stop.push({ matcher: ".*", hooks: [hookEntry] });
     }
     await writeFile(settingsPath, JSON.stringify(settings, null, 2), "utf8");
-    console.log("branch watch enabled — every Claude Code session will auto-save to ~/.branch/sessions/");
+    console.log("branch watch enabled — every Claude Code session will auto-save to ~/.branch/sessions/ (branch-hook serves Claude Code's Stop hook)");
   } else if (action === "off") {
     if (settings.hooks?.Stop) {
       settings.hooks.Stop = settings.hooks.Stop.filter((h: any) =>
@@ -469,11 +475,13 @@ async function runDefault(args: string[]) {
   const skipOpen = args.includes("--no-open");
   const noStream = args.includes("--no-stream");
   const skipShare = args.includes("--local");
-  let model: "sonnet" | "opus" | "haiku" = "sonnet";
+  let model: string | undefined;
+  let cli: string | undefined;
   const prompt: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
-    if (a === "--model") { model = args[++i] as any; continue; }
+    if (a === "--model") { model = args[++i]; continue; }
+    if (a === "--cli") { cli = args[++i]; continue; }
     if (a === "--no-open") continue;
     if (a === "--no-stream") continue;
     if (a === "--local") continue;
@@ -481,7 +489,7 @@ async function runDefault(args: string[]) {
   }
   if (prompt.length === 0) {
     console.error(`Usage:
-  branch [--model sonnet|opus|haiku] [--no-open] [--no-stream] [--local] "your prompt"
+  branch [--model <model>] [--cli claude|codex|gemini] [--no-open] [--no-stream] [--local] "your prompt"
   branch list [--limit N]
   branch export <sessionId> [--format markdown|mermaid]
   branch diff <sessionA> <sessionB>
@@ -489,18 +497,21 @@ async function runDefault(args: string[]) {
   branch decide <sessionId> [--conclusion "..." --rejected "X;Y" --confidence high --revisit-if "..."]
   branch decisions [--limit N]
   branch search <query>
-  branch replay <sessionId> [--model sonnet|opus|haiku]
+  branch replay <sessionId> [--model <model>] [--cli claude|codex|gemini]
   branch merge <sessionA> <sessionB>
-  branch watch on|off|status`);
+  branch watch on|off|status
+  branch doctor`);
     process.exit(1);
   }
   const joined = prompt.join(" ");
 
   if (!noStream) {
-    console.log(`Thinking with ${model} (live reasoning stream)...`);
+    const displayModel = model ?? "auto";
+    const displayCli = cli ?? "auto-detect";
+    console.log(`Thinking with ${displayModel} via ${displayCli} (live reasoning stream)...`);
     let nodeCount = 0;
     let finalTree: any = null;
-    for await (const ev of branchStream(joined, { model })) {
+    for await (const ev of branchStream(joined, { model, cli })) {
       if (ev.type === "start") {
         console.log(`  Session: ${ev.sessionId}`);
       }
@@ -546,8 +557,8 @@ async function runDefault(args: string[]) {
   }
 
   // --no-stream legacy path
-  console.log(`Thinking with ${model}...`);
-  const tree = await branch(joined, { model });
+  console.log(`Thinking with ${model ?? "auto"} via ${cli ?? "auto-detect"}...`);
+  const tree = await branch(joined, { model, cli });
   const url = `${VIEWER_URL}/t/${tree.sessionId}`;
   console.log(`\nDone.`);
   console.log(`  Session: ${tree.sessionId}`);
@@ -573,6 +584,49 @@ async function runDefault(args: string[]) {
   } else if (!skipOpen) {
     openInBrowser(url);
   }
+}
+
+async function runDoctor() {
+  const GREEN = "\x1b[32m";
+  const RED = "\x1b[31m";
+  const RESET = "\x1b[0m";
+  const DIM = "\x1b[2m";
+
+  console.log("");
+  const results: Array<{ adapter: any; avail: boolean; path: string | null }> = [];
+
+  for (const adapter of adapters) {
+    const avail = await adapter.available();
+    let binPath: string | null = null;
+    if (avail) {
+      try {
+        binPath = execSync(`which ${adapter.name}`, { encoding: "utf8" }).trim();
+      } catch { /* ignore */ }
+    }
+    results.push({ adapter, avail, path: binPath });
+  }
+
+  const nameWidth = Math.max(...adapters.map((a) => a.name.length)) + 2;
+  const labelWidth = Math.max(...adapters.map((a) => a.label.length)) + 2;
+
+  for (const { adapter, avail, path } of results) {
+    const status = avail
+      ? `${GREEN}✓ available${RESET}  ${DIM}(${adapter.name} binary at ${path ?? "unknown"})${RESET}`
+      : `${RED}✗ not installed${RESET}`;
+    const namePad = adapter.name.padEnd(nameWidth);
+    const labelPad = adapter.label.padEnd(labelWidth);
+    console.log(`  ${namePad}${labelPad}${status}`);
+  }
+
+  const detected = await detectAvailableAdapter();
+  console.log("");
+  if (detected) {
+    console.log(`  Default: ${detected.name} (auto-detected)`);
+  } else {
+    console.log(`  ${RED}No AI CLI found on PATH.${RESET}`);
+    console.log(`  Install one of: Claude Code, OpenAI Codex, or Google Gemini CLI.`);
+  }
+  console.log("");
 }
 
 async function runDiff(args: string[]) {
@@ -601,6 +655,7 @@ async function main() {
   if (args[0] === "replay") return runReplay(args.slice(1));
   if (args[0] === "merge") return runMerge(args.slice(1));
   if (args[0] === "watch") return runWatch(args.slice(1));
+  if (args[0] === "doctor") return runDoctor();
   return runDefault(args);
 }
 

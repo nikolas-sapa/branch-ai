@@ -1,7 +1,7 @@
 {
   "name": "branch-ai",
-  "version": "0.7.3",
-  "description": "A collaborative canvas for AI reasoning. Wraps the Claude Code CLI to capture extended thinking as a navigable, forkable tree.",
+  "version": "1.0.0",
+  "description": "The reasoning canvas for any AI CLI. Works with Claude Code, OpenAI Codex, and Google Gemini — captures each tool's reasoning as a navigable, forkable tree.",
   "type": "module",
   "bin": {
     "branch": "dist/cli.js",

@@ -1,25 +1,37 @@
 # branch-ai
 
-A collaborative canvas for AI reasoning. Wraps the `claude` CLI to capture Claude's reasoning steps as a navigable tree — you can walk backward through the thinking, explore alternative paths from any point, or add a new fact mid-thought and watch how the conclusion changes.
+**The reasoning canvas for any AI CLI.** Works with Claude Code, OpenAI Codex, or Google Gemini — captures each tool's reasoning as a navigable, forkable tree. Walk backward through the thinking, explore alternative paths from any point, or add a new fact mid-thought and watch how the conclusion changes.
 
 **See it live:** Try the [public demo](https://branchai-fawn.vercel.app) — view real reasoning trees. To create your own and fork them, install locally below.
 
-> **Why this exists.** When Claude works through a hard problem, the reasoning vanishes the moment you see the answer. Branch preserves every reasoning step, lets you rewind to any point, and explore "what if I changed this assumption?" — without starting over.
+> **Why this exists.** When an AI works through a hard problem, the reasoning vanishes the moment you see the answer. Branch preserves every reasoning step, lets you rewind to any point, and explore "what if I changed this assumption?" — without starting over.
 
 ![Branch viewer screenshot](https://raw.githubusercontent.com/84yk8btb9f-prog/branch-ai/main/assets/viewer.png)
 
+## Supported CLIs
+
+- **Claude Code** — full thinking-block capture (richest reasoning)
+- **OpenAI Codex CLI** — captures reasoning summaries from o3 / gpt-5
+- **Google Gemini CLI** — captures Flash thinking-mode output
+
+Run `branch doctor` after install to see which are available on your PATH.
+
 ## What you get
 
-- **`branch "prompt"`** — CLI that captures reasoning as a navigable tree
-- **`branch-mcp`** — MCP server (Model Context Protocol — the way Claude Code talks to external tools) so Claude Code agents can externalize their own reasoning
+- **`branch "prompt"`** — CLI that captures reasoning as a navigable tree (auto-detects which AI CLI to use, or pass `--cli claude|codex|gemini`)
+- **`branch-mcp`** — MCP server so Claude Code agents can externalize their own reasoning, fork it, or add facts mid-thought
 - **Web viewer** — React Flow canvas where you click any node to explore an alternative path or add a new fact
 - **`branch decide`** — record what you decided, what you rejected, and what would change the answer later
+- **`branch doctor`** — see which AI CLIs are installed and which one Branch will use by default
 
 ## Requirements
 
 - Node 20+
-- Claude Code CLI installed and signed in (`claude` command on PATH)
-- A Claude Pro, Max, or Team subscription (Branch uses your subscription via the `claude` subprocess — no Anthropic API key needed)
+- At least one AI CLI on PATH:
+  - **Claude Code** signed in (Claude Pro, Max, or Team subscription)
+  - **OpenAI Codex CLI** (`codex` binary)
+  - **Google Gemini CLI** (`gemini` binary)
+- Branch uses your existing CLI auth — no API keys required by Branch itself
 
 ## Install
 
@@ -43,13 +55,14 @@ branch "Should I deploy on Friday afternoon? Think carefully through the tradeof
 ## CLI
 
 ```
-branch [--model sonnet|opus|haiku] [--local] "your prompt"
+branch [--cli claude|codex|gemini] [--model <model>] [--local] "your prompt"
 ```
 
-- Default model: `sonnet` (fastest, available on Pro)
-- Use `--model opus` for harder reasoning problems
-- Use `--model haiku` for quick drafts
-- Use `--local` to skip auto-sharing for a single run when `BRANCH_AUTO_SHARE=1` is set (auto-share is OFF by default — see Privacy section)
+- **`--cli`** — pick an AI CLI. Defaults to auto-detect (first available on PATH).
+- **`--model`** — model name (each adapter has its own defaults; e.g. `sonnet` for Claude, `gpt-5` for Codex, `gemini-2.5-flash` for Gemini)
+- **`--local`** — skip auto-sharing for a single run when `BRANCH_AUTO_SHARE=1` is set (auto-share is OFF by default — see Privacy section)
+
+Run `branch doctor` to see which CLIs are available and which Branch will use by default.
 
 Sessions are saved to `~/.branch/sessions/<id>.json`. The viewer reads them from there.
 
