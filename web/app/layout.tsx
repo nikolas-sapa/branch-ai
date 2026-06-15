@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${sora.variable} ${jakarta.variable} ${mono.variable}`}>
-      <body className="bg-[#0B0B0D] text-[#E8E8EC] font-[family-name:var(--font-jakarta)] antialiased">
+      <body className="bg-[#0A0F14] text-[#E6EDF3] font-[family-name:var(--font-jakarta)] antialiased">
         {children}
       </body>
     </html>
