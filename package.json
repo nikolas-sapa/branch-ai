@@ -20,7 +20,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "viewer": "cd viewer && npm install && npm run dev",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build && npm test",
+    "test:live": "BRANCH_LIVE_TESTS=1 vitest run",
+    "test:viewer": "BRANCH_VIEWER_TESTS=1 vitest run tests/viewer-boundaries.test.ts"
   },
   "repository": {
     "type": "git",

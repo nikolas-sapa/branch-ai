@@ -16,7 +16,8 @@ export function buildForkPrompt(opts: {
   forkNodeId: string;
   modifier: string;
 }): string {
-  const path = findPath(opts.tree.root, opts.forkNodeId) ?? [];
+  const path = findPath(opts.tree.root, opts.forkNodeId);
+  if (!path) throw new Error(`Node ${opts.forkNodeId} not found in tree`);
   const priorReasoning = path
     .slice(1)
     .map((n) => n.content)

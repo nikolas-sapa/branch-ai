@@ -43,16 +43,11 @@ https://your-viewer.vercel.app/t/<sessionId>
 
 ## Real-time presence note
 
-Real-time presence (live cursors) requires a separate WebSocket server. In hosted mode the viewer automatically skips presence wiring entirely — no errors, no broken UI. If you want presence on a hosted deployment you would need to:
-
-1. Deploy `ws-server.mjs` to a long-running Node host (Fly.io, Railway, etc.)
-2. Set `NEXT_PUBLIC_BRANCH_WS_URL` to point at it on your Vercel project and redeploy
-
-To deploy the WS server on Railway:
-1. Create a new Railway service pointed at the `branch-ai` repo
-2. Set the start command to `node viewer/ws-server.mjs`
-3. Set `BRANCH_WS_PORT` to the port Railway exposes
-4. Copy the public URL into `NEXT_PUBLIC_BRANCH_WS_URL` on your Vercel project and redeploy
+Real-time presence (live cursors) requires a separate WebSocket server. In hosted mode the viewer automatically skips presence wiring entirely — no errors, no broken UI. Remote presence requires a separately secured, long-running WebSocket service. The bundled
+`ws-server.mjs` binds to `127.0.0.1` and serves local presence only; it is not a public
+Railway service. A public server must provide authentication and appropriate browser
+Origin checks. Once that service is available, set `NEXT_PUBLIC_BRANCH_WS_URL` on the
+viewer to its URL.
 
 ## What works in hosted mode
 

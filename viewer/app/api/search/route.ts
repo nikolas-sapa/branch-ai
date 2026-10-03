@@ -2,6 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { NextRequest, NextResponse } from "next/server";
+import { isLocalRequest } from "@/lib/server-mode";
 
 function flattenContent(n: any): string[] {
   const kids: string[] = (n.children ?? []).flatMap(flattenContent);
@@ -18,6 +19,9 @@ function scoreText(haystack: string, query: string): number {
 }
 
 export async function GET(req: NextRequest) {
+  if (!(await isLocalRequest())) {
+    return NextResponse.json({ error: "local request required" }, { status: 403 });
+  }
   const q = req.nextUrl.searchParams.get("q")?.trim().toLowerCase() ?? "";
   if (!q) return NextResponse.json({ results: [] });
 

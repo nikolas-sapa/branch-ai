@@ -2,12 +2,16 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { NextRequest, NextResponse } from "next/server";
+import { isLocalMutation } from "@/lib/server-mode";
 
 function sessionPath(id: string): string {
   return join(homedir(), ".branch", "sessions", `${id}.json`);
 }
 
 export async function PATCH(req: NextRequest) {
+  if (!(await isLocalMutation(req))) {
+    return NextResponse.json({ error: "local same-origin request required" }, { status: 403 });
+  }
   try {
     const body = await req.json();
     const { sessionId, tags, pinned } = body as {
@@ -35,6 +39,9 @@ export async function PATCH(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  if (!(await isLocalMutation(req))) {
+    return NextResponse.json({ error: "local same-origin request required" }, { status: 403 });
+  }
   try {
     const body = await req.json();
     const { sessionId, tag } = body as { sessionId?: string; tag?: string };

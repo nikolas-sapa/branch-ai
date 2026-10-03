@@ -3,15 +3,16 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "dev": "concurrently \"node ws-server.mjs\" \"next dev -p 7432\"",
+    "dev": "concurrently \"node ws-server.mjs\" \"next dev -p 7432 --hostname 127.0.0.1\"",
     "ws": "node ws-server.mjs",
-    "next-dev": "next dev -p 7432",
+    "next-dev": "next dev -p 7432 --hostname 127.0.0.1",
     "build": "next build",
-    "start": "next start",
+    "start": "next start --hostname 127.0.0.1",
     "lint": "next lint"
   },
   "dependencies": {
     "@xyflow/react": "^12.3.0",
+    "@y/websocket-server": "0.1.1",
     "nanoid": "^5.1.9",
     "next": "^15.3.0",
     "react": "19.0.0",

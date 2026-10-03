@@ -241,6 +241,8 @@ branch --local "your prompt"  # opt out for one run
 ```
 
 **Self-hosted viewer:**
+Local viewer and presence server bind to `127.0.0.1` by default. Private session reads and search require an exact loopback host. Mutations additionally require a same-origin browser request (local CLI requests without Origin remain supported). Hosted gallery and explicitly shared Blob sessions remain readable. Host checks do not provide authentication; protect any deliberate hosted edit override with authentication.
+
 Deploy the `viewer/` directory to Vercel. See `viewer/README-DEPLOY.md` for step-by-step instructions.
 
 ### Environment variables (hosted mode)
@@ -287,7 +289,7 @@ branch-ai/
 
 Branch supports multi-user presence on the same session URL. Open the same viewer link in two browsers and you'll see each other's cursors and selected nodes live.
 
-The viewer uses Yjs awareness over a tiny WebSocket server (no auth, no persistence). The dev script starts both the Next.js viewer and the WS server with `npm run viewer`. Custom port: `BRANCH_WS_PORT=7434 npm run viewer`. Custom WS URL on the client: `NEXT_PUBLIC_BRANCH_WS_URL=ws://your-host:7433`.
+The viewer uses Yjs awareness over a tiny loopback WebSocket server (no auth, no persistence). The dev script starts both the Next.js viewer and the WS server with `npm run viewer`. Custom port: `BRANCH_WS_PORT=7434 npm run viewer`. Remote presence requires a separately secured WebSocket service. Custom WS URL on the client: `NEXT_PUBLIC_BRANCH_WS_URL=ws://your-host:7433`.
 
 ## Contributing
 

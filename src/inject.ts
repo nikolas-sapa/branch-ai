@@ -15,7 +15,8 @@ export function buildInjectPrompt(opts: {
   nodeId: string;
   fact: string;
 }): string {
-  const path = findPath(opts.tree.root, opts.nodeId) ?? [];
+  const path = findPath(opts.tree.root, opts.nodeId);
+  if (!path) throw new Error(`Node ${opts.nodeId} not found in tree`);
   const priorReasoning = path.slice(1).map((n) => n.content).join("\n\n");
 
   return [

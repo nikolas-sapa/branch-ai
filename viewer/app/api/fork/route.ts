@@ -3,13 +3,13 @@ import { spawn } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { isLocalRequest } from "@/lib/server-mode";
+import { isLocalMutation } from "@/lib/server-mode";
 
 const SESSION_ID_RE = /^[a-zA-Z0-9_-]+$/;
 const ALLOWED_MODELS = ["sonnet", "opus", "haiku"] as const;
 
 export async function POST(req: Request) {
-  if (!(await isLocalRequest())) {
+  if (!(await isLocalMutation(req))) {
     return NextResponse.json(
       { error: "Fork and inject require a local Branch installation. Install with: npm install -g branch-ai" },
       { status: 403 }
@@ -31,7 +31,10 @@ export async function POST(req: Request) {
     for (const c of n.children) { const f = findPath(c, tid, p); if (f) return f; }
     return null;
   };
-  const pathNodes = findPath(tree.root, nodeId) ?? [];
+  const pathNodes = findPath(tree.root, nodeId);
+  if (!pathNodes) {
+    return NextResponse.json({ error: "node not found" }, { status: 404 });
+  }
   const priorReasoning = pathNodes.slice(1).map((n: any) => n.content).join("\n\n");
   const forkPrompt = `Original question: ${tree.prompt}\n\nYou previously reasoned:\n${priorReasoning}\n\nNow reconsider with this change: ${modifier}\n\nThink carefully.`;
 

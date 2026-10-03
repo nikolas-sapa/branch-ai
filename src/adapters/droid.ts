@@ -28,7 +28,7 @@
  * The adapter is safe to import when droid is not installed — available() returns false
  * and run/runStream throw a clear error.
  */
-import { spawn } from "node:child_process";
+import { processLines } from "./process.js";
 import { execSync } from "node:child_process";
 import type { ReasoningAdapter, StreamEvent } from "./types.js";
 
@@ -43,82 +43,54 @@ async function* runDroidStream(opts: {
     args.splice(2, 0, "-m", opts.model);
   }
 
-  const child = spawn("droid", args, { stdio: ["ignore", "pipe", "pipe"] });
-
-  let buffer = "";
   let fullThinking = "";
   let fullText = "";
 
-  const chunks: Buffer[] = [];
-  let resolve: (() => void) | null = null;
-  let done = false;
+  for await (const line of processLines("droid", args)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("{")) continue;
+    try {
+      const ev = JSON.parse(trimmed);
 
-  child.stdout!.on("data", (chunk: Buffer) => {
-    chunks.push(chunk);
-    if (resolve) { resolve(); resolve = null; }
-  });
-  child.stdout!.on("end", () => {
-    done = true;
-    if (resolve) { resolve(); resolve = null; }
-  });
+      // ASSUMPTION: Droid's own thinking wrapper
+      if (ev.type === "thinking" && typeof ev.content === "string") {
+        const delta = ev.content.slice(fullThinking.length);
+        if (delta) { fullThinking += delta; yield { type: "thinking_delta", text: delta }; }
+      }
 
-  const nextChunk = (): Promise<void> =>
-    new Promise((res) => { resolve = res; });
+      // ASSUMPTION: Anthropic-style thinking block passthrough (when underlying is Claude)
+      if (ev.type === "thinking_block" && typeof ev.thinking === "string") {
+        const delta = ev.thinking.slice(fullThinking.length);
+        if (delta) { fullThinking += delta; yield { type: "thinking_delta", text: delta }; }
+      }
 
-  while (true) {
-    while (chunks.length > 0) {
-      buffer += chunks.shift()!.toString();
-    }
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("{")) continue;
-      try {
-        const ev = JSON.parse(trimmed);
-
-        // ASSUMPTION: Droid's own thinking wrapper
-        if (ev.type === "thinking" && typeof ev.content === "string") {
-          const delta = ev.content.slice(fullThinking.length);
+      // ASSUMPTION: OpenAI-style reasoning block (when underlying is o3/gpt-5)
+      if (ev.type === "reasoning") {
+        let chunk = "";
+        if (typeof ev.content === "string") chunk = ev.content;
+        else if (Array.isArray(ev.summary)) chunk = ev.summary.map((s: any) => s.text ?? "").join("");
+        if (chunk) {
+          const delta = chunk.slice(fullThinking.length);
           if (delta) { fullThinking += delta; yield { type: "thinking_delta", text: delta }; }
         }
+      }
 
-        // ASSUMPTION: Anthropic-style thinking block passthrough (when underlying is Claude)
-        if (ev.type === "thinking_block" && typeof ev.thinking === "string") {
-          const delta = ev.thinking.slice(fullThinking.length);
-          if (delta) { fullThinking += delta; yield { type: "thinking_delta", text: delta }; }
-        }
-
-        // ASSUMPTION: OpenAI-style reasoning block (when underlying is o3/gpt-5)
-        if (ev.type === "reasoning") {
-          let chunk = "";
-          if (typeof ev.content === "string") chunk = ev.content;
-          else if (Array.isArray(ev.summary)) chunk = ev.summary.map((s: any) => s.text ?? "").join("");
-          if (chunk) {
-            const delta = chunk.slice(fullThinking.length);
-            if (delta) { fullThinking += delta; yield { type: "thinking_delta", text: delta }; }
+      // ASSUMPTION: message block (structured content array)
+      if (ev.type === "message" && Array.isArray(ev.content)) {
+        for (const block of ev.content) {
+          if (block.type === "text" && block.text) {
+            const delta = block.text.slice(fullText.length);
+            if (delta) { fullText += delta; yield { type: "text_delta", text: delta }; }
           }
         }
+      }
 
-        // ASSUMPTION: message block (structured content array)
-        if (ev.type === "message" && Array.isArray(ev.content)) {
-          for (const block of ev.content) {
-            if (block.type === "text" && block.text) {
-              const delta = block.text.slice(fullText.length);
-              if (delta) { fullText += delta; yield { type: "text_delta", text: delta }; }
-            }
-          }
-        }
-
-        // ASSUMPTION: flat output_text event
-        if (ev.type === "output_text" && typeof ev.text === "string") {
-          const delta = ev.text.slice(fullText.length);
-          if (delta) { fullText += delta; yield { type: "text_delta", text: delta }; }
-        }
-      } catch { /* skip malformed */ }
-    }
-    if (done && chunks.length === 0) break;
-    await nextChunk();
+      // ASSUMPTION: flat output_text event
+      if (ev.type === "output_text" && typeof ev.text === "string") {
+        const delta = ev.text.slice(fullText.length);
+        if (delta) { fullText += delta; yield { type: "text_delta", text: delta }; }
+      }
+    } catch { /* skip malformed */ }
   }
 
   yield { type: "done", full: { thinking: fullThinking, finalText: fullText } };

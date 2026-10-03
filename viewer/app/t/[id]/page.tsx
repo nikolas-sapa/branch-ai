@@ -1,3 +1,4 @@
+import { isLocalRequest } from "@/lib/server-mode";
 import { TreeCanvas } from "@/components/TreeCanvas";
 import { FinalTextPanel } from "@/components/FinalTextPanel";
 import { SessionHeaderActions } from "@/components/SessionHeaderActions";
@@ -9,11 +10,13 @@ import { homedir } from "node:os";
 async function loadTree(id: string) {
   if (!/^[a-zA-Z0-9_-]+$/.test(id)) throw new Error("invalid id");
   // 1. Local user sessions (~/.branch/sessions/)
-  try {
-    const path = join(homedir(), ".branch", "sessions", `${id}.json`);
-    const raw = await readFile(path, "utf8");
-    return JSON.parse(raw);
-  } catch {}
+  if (await isLocalRequest()) {
+    try {
+      const path = join(homedir(), ".branch", "sessions", `${id}.json`);
+      const raw = await readFile(path, "utf8");
+      return JSON.parse(raw);
+    } catch {}
+  }
   // 2. Bundled gallery sessions (viewer/public/gallery-sessions/) — works on hosted deploy
   try {
     const path = join(process.cwd(), "public", "gallery-sessions", `${id}.json`);

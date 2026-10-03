@@ -2,8 +2,8 @@
  * OpenAI Codex CLI adapter.
  *
  * ASSUMPTIONS (unverified — iterate when real users test with codex):
- * - The `codex` CLI accepts `--json` flag (or `--output-format json`) and
- *   `--quiet` to suppress interactive UI, similar to `claude --output-format=stream-json`.
+ * - Uses `codex exec --json` for non-interactive NDJSON output.
+ * - Completed agent_message and reasoning items supply text.
  * - With o3/gpt-5 models, the JSON output includes `reasoning` blocks alongside
  *   `message` blocks, following OpenAI's published streaming format:
  *   https://github.com/openai/codex
@@ -18,7 +18,7 @@
  * The adapter is safe to import when codex is not installed — available() returns false
  * and run/runStream throw a clear error.
  */
-import { spawn } from "node:child_process";
+import { processLines } from "./process.js";
 import { execSync } from "node:child_process";
 import type { ReasoningAdapter, StreamEvent } from "./types.js";
 
@@ -26,70 +26,52 @@ async function* runCodexStream(opts: {
   prompt: string;
   model?: string;
 }): AsyncGenerator<StreamEvent> {
-  // ASSUMPTION: codex --json --quiet -m <model> "<prompt>"
-  const args = ["--json", "--quiet", opts.prompt];
-  if (opts.model) args.splice(2, 0, "-m", opts.model);
+  const args = ["exec", "--json"];
+  if (opts.model) args.push("--model", opts.model);
+  args.push("--", opts.prompt);
 
-  const child = spawn("codex", args, { stdio: ["ignore", "pipe", "pipe"] });
-
-  let buffer = "";
   let fullThinking = "";
   let fullText = "";
 
-  const chunks: Buffer[] = [];
-  let resolve: (() => void) | null = null;
-  let done = false;
-
-  child.stdout!.on("data", (chunk: Buffer) => {
-    chunks.push(chunk);
-    if (resolve) { resolve(); resolve = null; }
-  });
-  child.stdout!.on("end", () => {
-    done = true;
-    if (resolve) { resolve(); resolve = null; }
-  });
-
-  const nextChunk = (): Promise<void> =>
-    new Promise((res) => { resolve = res; });
-
-  while (true) {
-    while (chunks.length > 0) {
-      buffer += chunks.shift()!.toString();
-    }
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith("{")) continue;
-      try {
-        const ev = JSON.parse(trimmed);
-        // ASSUMPTION: reasoning block formats
-        if (ev.type === "reasoning") {
-          let chunk = "";
-          if (typeof ev.content === "string") chunk = ev.content;
-          else if (Array.isArray(ev.summary)) chunk = ev.summary.map((s: any) => s.text ?? "").join("");
-          if (chunk) {
-            const delta = chunk.slice(fullThinking.length);
-            if (delta) { fullThinking += delta; yield { type: "thinking_delta", text: delta }; }
+  for await (const line of processLines("codex", args)) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith("{")) continue;
+    try {
+      const ev = JSON.parse(trimmed);
+      if (ev.type === "item.completed" && typeof ev.item?.text === "string") {
+        if (ev.item.type === "reasoning") {
+          fullThinking += ev.item.text;
+          yield { type: "thinking_delta", text: ev.item.text };
+        }
+        if (ev.item.type === "agent_message") {
+          fullText += ev.item.text;
+          yield { type: "text_delta", text: ev.item.text };
+        }
+      }
+      // Legacy reasoning block formats
+      if (ev.type === "reasoning") {
+        let chunk = "";
+        if (typeof ev.content === "string") chunk = ev.content;
+        else if (Array.isArray(ev.summary)) chunk = ev.summary.map((s: any) => s.text ?? "").join("");
+        if (chunk) {
+          const delta = chunk.slice(fullThinking.length);
+          if (delta) { fullThinking += delta; yield { type: "thinking_delta", text: delta }; }
+        }
+      }
+      // ASSUMPTION: message/output block formats
+      if (ev.type === "message" && Array.isArray(ev.content)) {
+        for (const block of ev.content) {
+          if (block.type === "text" && block.text) {
+            const delta = block.text.slice(fullText.length);
+            if (delta) { fullText += delta; yield { type: "text_delta", text: delta }; }
           }
         }
-        // ASSUMPTION: message/output block formats
-        if (ev.type === "message" && Array.isArray(ev.content)) {
-          for (const block of ev.content) {
-            if (block.type === "text" && block.text) {
-              const delta = block.text.slice(fullText.length);
-              if (delta) { fullText += delta; yield { type: "text_delta", text: delta }; }
-            }
-          }
-        }
-        if (ev.type === "output_text" && typeof ev.text === "string") {
-          const delta = ev.text.slice(fullText.length);
-          if (delta) { fullText += delta; yield { type: "text_delta", text: delta }; }
-        }
-      } catch { /* skip malformed */ }
-    }
-    if (done && chunks.length === 0) break;
-    await nextChunk();
+      }
+      if (ev.type === "output_text" && typeof ev.text === "string") {
+        const delta = ev.text.slice(fullText.length);
+        if (delta) { fullText += delta; yield { type: "text_delta", text: delta }; }
+      }
+    } catch { /* skip malformed */ }
   }
 
   yield { type: "done", full: { thinking: fullThinking, finalText: fullText } };
