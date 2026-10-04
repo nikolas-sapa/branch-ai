@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/branch-ai?style=flat-square&color=F3F2EE&labelColor=0B0B0D)](https://www.npmjs.com/package/branch-ai)
 [![license](https://img.shields.io/badge/license-MIT-F3F2EE?style=flat-square&labelColor=0B0B0D)](LICENSE)
-[![node](https://img.shields.io/badge/node-%3E%3D20-F3F2EE?style=flat-square&labelColor=0B0B0D)](package.json)
+[![node](https://img.shields.io/badge/node-%3E%3D20.5-F3F2EE?style=flat-square&labelColor=0B0B0D)](package.json)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-F3F2EE?style=flat-square&labelColor=0B0B0D)](CONTRIBUTING.md)
 
 **The reasoning canvas for any AI CLI.** Works with Claude Code, OpenAI Codex, Google Gemini, or Factory.ai Droid — captures each tool's reasoning as a navigable, forkable tree. Walk backward through the thinking, explore alternative paths from any point, or add a new fact mid-thought and watch how the conclusion changes.
@@ -77,7 +77,7 @@ Run `branch doctor` after install to see which are available on your PATH.
 
 ## Requirements
 
-- Node 20+
+- Node 20.5+ (Node 20.6+ for source development with `node --import tsx`)
 - At least one AI CLI on PATH:
   - **Claude Code** signed in (Claude Pro, Max, or Team subscription)
   - **OpenAI Codex CLI** (`codex` binary)
@@ -122,6 +122,8 @@ Sessions are saved to `~/.branch/sessions/<id>.json`. The viewer reads them from
 
 | Command | What it does |
 |---|---|
+| `branch --help` / `branch -h` | Show usage without running a prompt |
+| `branch --version` / `branch -V` | Show installed package version |
 | `branch "prompt"` | Run a prompt and open the reasoning tree |
 | `branch list` | Recent sessions |
 | `branch search <query>` | Search across all sessions including decision conclusions |

@@ -14,6 +14,25 @@ import { fileURLToPath } from "node:url";
 import * as readline from "node:readline/promises";
 
 const VIEWER_URL = process.env.BRANCH_VIEWER_URL ?? "http://localhost:7432";
+const USAGE = `Usage:
+  branch --help | -h
+  branch --version | -V
+  branch [--model <model>] [--cli claude|codex|gemini|droid] [--no-open] [--no-stream] [--local] "your prompt"
+  branch list [--limit N]
+  branch export <sessionId> [--format markdown|mermaid]
+  branch diff <sessionA> <sessionB>
+  branch share <sessionId>
+  branch decide <sessionId> [--conclusion "..." --rejected "X;Y" --confidence high --revisit-if "..."]
+  branch decisions [--limit N]
+  branch search <query>
+  branch replay <sessionId> [--model <model>] [--cli claude|codex|gemini|droid]
+  branch merge <sessionA> <sessionB>
+  branch watch on|off|status
+  branch mcp install <claude-code|claude-desktop|cursor|codex|cline>
+  branch mcp install --all
+  branch mcp uninstall <client>
+  branch mcp status
+  branch doctor`;
 
 async function viewerReachable(url: string): Promise<boolean> {
   try {
@@ -489,23 +508,7 @@ async function runDefault(args: string[]) {
     prompt.push(a);
   }
   if (prompt.length === 0) {
-    console.error(`Usage:
-  branch [--model <model>] [--cli claude|codex|gemini|droid] [--no-open] [--no-stream] [--local] "your prompt"
-  branch list [--limit N]
-  branch export <sessionId> [--format markdown|mermaid]
-  branch diff <sessionA> <sessionB>
-  branch share <sessionId>
-  branch decide <sessionId> [--conclusion "..." --rejected "X;Y" --confidence high --revisit-if "..."]
-  branch decisions [--limit N]
-  branch search <query>
-  branch replay <sessionId> [--model <model>] [--cli claude|codex|gemini|droid]
-  branch merge <sessionA> <sessionB>
-  branch watch on|off|status
-  branch mcp install <claude-code|claude-desktop|cursor|codex|cline>
-  branch mcp install --all
-  branch mcp uninstall <client>
-  branch mcp status
-  branch doctor`);
+    console.error(USAGE);
     process.exit(1);
   }
   const joined = prompt.join(" ");
@@ -673,6 +676,15 @@ async function runMcp(args: string[]) {
 
 async function main() {
   const args = process.argv.slice(2);
+  if (args[0] === "--help" || args[0] === "-h") {
+    console.log(USAGE);
+    return;
+  }
+  if (args[0] === "--version" || args[0] === "-V") {
+    const { version } = JSON.parse(await readFile(new URL("../package.json", import.meta.url), "utf8"));
+    console.log(version);
+    return;
+  }
   if (args[0] === "export") return runExport(args.slice(1));
   if (args[0] === "list") return runList(args.slice(1));
   if (args[0] === "diff") return runDiff(args.slice(1));

@@ -14,11 +14,8 @@ export default defineConfig({
     // All tests run sequentially in a single worker — prevents multiple
     // simultaneous Claude CLI invocations from starving each other.
     pool: "forks",
-    poolOptions: {
-      forks: {
-        singleFork: true,
-      },
-    },
+    maxWorkers: 1,
+    isolate: false,
     // Live tests spawn `claude` subprocess which can flake on transient
     // network/rate-limit hiccups. Retry once before failing.
     retry: process.env.BRANCH_LIVE_TESTS === "1" ? 1 : 0,
