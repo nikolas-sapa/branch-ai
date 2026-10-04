@@ -4,6 +4,8 @@ The hosted viewer is **read-only**. Visitors can browse and navigate reasoning t
 
 ## Prerequisites
 
+- Node.js 20.9 or newer for this optional Next.js viewer. The standalone CLI supports Node.js 20.5 or newer and its published package excludes the viewer.
+
 - [Vercel CLI](https://vercel.com/docs/cli): `npm install -g vercel`
 - Logged in: `vercel login`
 - A Vercel Blob store created at https://vercel.com/dashboard/stores

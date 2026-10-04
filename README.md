@@ -77,7 +77,8 @@ Run `branch doctor` after install to see which are available on your PATH.
 
 ## Requirements
 
-- Node 20.5+ (Node 20.6+ for source development with `node --import tsx`)
+- Node 20.5+ for the standalone CLI (Node 20.6+ for source development with `node --import tsx`)
+- Node 20.9+ for the optional local viewer
 - At least one AI CLI on PATH:
   - **Claude Code** signed in (Claude Pro, Max, or Team subscription)
   - **OpenAI Codex CLI** (`codex` binary)
@@ -90,6 +91,8 @@ Run `branch doctor` after install to see which are available on your PATH.
 ```bash
 npm install -g branch-ai
 ```
+
+The published CLI package excludes the viewer. Clone the repository to run the local viewer with Node 20.9+. Viewer auto-start failures are handled by the CLI; they do not raise the standalone CLI Node requirement.
 
 ## Quickstart
 
