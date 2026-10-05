@@ -1,3 +1,4 @@
+import { isLocalRequest } from "@/lib/server-mode";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
@@ -12,11 +13,13 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     return NextResponse.json({ error: "invalid id" }, { status: 400 });
   }
   // 1. Local user sessions
-  try {
-    const path = join(homedir(), ".branch", "sessions", `${id}.json`);
-    const raw = await readFile(path, "utf8");
-    return NextResponse.json(JSON.parse(raw));
-  } catch {}
+  if (await isLocalRequest()) {
+    try {
+      const path = join(homedir(), ".branch", "sessions", `${id}.json`);
+      const raw = await readFile(path, "utf8");
+      return NextResponse.json(JSON.parse(raw));
+    } catch {}
+  }
   // 2. Bundled gallery sessions
   try {
     const path = join(process.cwd(), "public", "gallery-sessions", `${id}.json`);

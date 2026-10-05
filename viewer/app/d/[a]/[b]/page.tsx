@@ -1,3 +1,4 @@
+import { isLocalRequest } from "@/lib/server-mode";
 import { DiffCanvas } from "@/components/DiffCanvas";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -6,13 +7,15 @@ import { homedir } from "node:os";
 async function loadTree(id: string) {
   if (!/^[a-zA-Z0-9_-]+$/.test(id)) throw new Error("invalid id");
   // Local first
-  try {
-    const raw = await readFile(
-      join(homedir(), ".branch", "sessions", `${id}.json`),
-      "utf8"
-    );
-    return JSON.parse(raw);
-  } catch {}
+  if (await isLocalRequest()) {
+    try {
+      const raw = await readFile(
+        join(homedir(), ".branch", "sessions", `${id}.json`),
+        "utf8"
+      );
+      return JSON.parse(raw);
+    } catch {}
+  }
   // Blob fallback
   const blobBase = process.env.BRANCH_BLOB_BASE;
   if (blobBase) {

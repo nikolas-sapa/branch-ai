@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { buildForkPrompt } from "../src/fork.js";
+import { describe, it, expect, vi } from "vitest";
+import { buildForkPrompt, forkNode } from "../src/fork.js";
 import type { Node } from "../src/tree.js";
 
 describe("buildForkPrompt", () => {
@@ -22,4 +22,18 @@ describe("buildForkPrompt", () => {
     expect(prompt).toContain("option B: bus");
     expect(prompt).toContain("cost is not a factor");
   });
+});
+
+const forkTree = {
+  root: { id: "root", content: "Root", children: [] },
+  prompt: "Question", model: "sonnet", sessionId: "test", createdAt: "", finalText: "",
+};
+it("rejects an absent fork node before invoking the provider", async () => {
+  const runClaude = vi.fn();
+  expect(() => buildForkPrompt({ originalPrompt: "Question", tree: forkTree, forkNodeId: "missing", modifier: "change" })).toThrow(/node.*not found/i);
+  await expect(forkNode({ tree: forkTree, forkNodeId: "missing", modifier: "change", runClaude })).rejects.toThrow(/node.*not found/i);
+  expect(runClaude).not.toHaveBeenCalled();
+});
+it("allows a fork from the root", () => {
+  expect(buildForkPrompt({ originalPrompt: "Question", tree: forkTree, forkNodeId: "root", modifier: "change" })).toContain("Question");
 });

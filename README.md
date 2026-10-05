@@ -2,7 +2,7 @@
 
 [![npm version](https://img.shields.io/npm/v/branch-ai?style=flat-square&color=F3F2EE&labelColor=0B0B0D)](https://www.npmjs.com/package/branch-ai)
 [![license](https://img.shields.io/badge/license-MIT-F3F2EE?style=flat-square&labelColor=0B0B0D)](LICENSE)
-[![node](https://img.shields.io/badge/node-%3E%3D20-F3F2EE?style=flat-square&labelColor=0B0B0D)](package.json)
+[![node](https://img.shields.io/badge/node-%3E%3D20.5-F3F2EE?style=flat-square&labelColor=0B0B0D)](package.json)
 [![PRs welcome](https://img.shields.io/badge/PRs-welcome-F3F2EE?style=flat-square&labelColor=0B0B0D)](CONTRIBUTING.md)
 
 **The reasoning canvas for any AI CLI.** Works with Claude Code, OpenAI Codex, Google Gemini, or Factory.ai Droid — captures each tool's reasoning as a navigable, forkable tree. Walk backward through the thinking, explore alternative paths from any point, or add a new fact mid-thought and watch how the conclusion changes.
@@ -77,7 +77,8 @@ Run `branch doctor` after install to see which are available on your PATH.
 
 ## Requirements
 
-- Node 20+
+- Node 20.5+ for the standalone CLI (Node 20.6+ for source development with `node --import tsx`)
+- Node 20.9+ for the optional local viewer
 - At least one AI CLI on PATH:
   - **Claude Code** signed in (Claude Pro, Max, or Team subscription)
   - **OpenAI Codex CLI** (`codex` binary)
@@ -90,6 +91,8 @@ Run `branch doctor` after install to see which are available on your PATH.
 ```bash
 npm install -g branch-ai
 ```
+
+The published CLI package excludes the viewer. Clone the repository to run the local viewer with Node 20.9+. Viewer auto-start failures are handled by the CLI; they do not raise the standalone CLI Node requirement.
 
 ## Quickstart
 
@@ -122,6 +125,8 @@ Sessions are saved to `~/.branch/sessions/<id>.json`. The viewer reads them from
 
 | Command | What it does |
 |---|---|
+| `branch --help` / `branch -h` | Show usage without running a prompt |
+| `branch --version` / `branch -V` | Show installed package version |
 | `branch "prompt"` | Run a prompt and open the reasoning tree |
 | `branch list` | Recent sessions |
 | `branch search <query>` | Search across all sessions including decision conclusions |
@@ -241,6 +246,8 @@ branch --local "your prompt"  # opt out for one run
 ```
 
 **Self-hosted viewer:**
+Local viewer and presence server bind to `127.0.0.1` by default. Private session reads and search require an exact loopback host. Mutations additionally require a same-origin browser request (local CLI requests without Origin remain supported). Hosted gallery and explicitly shared Blob sessions remain readable. Host checks do not provide authentication; protect any deliberate hosted edit override with authentication.
+
 Deploy the `viewer/` directory to Vercel. See `viewer/README-DEPLOY.md` for step-by-step instructions.
 
 ### Environment variables (hosted mode)
@@ -287,7 +294,7 @@ branch-ai/
 
 Branch supports multi-user presence on the same session URL. Open the same viewer link in two browsers and you'll see each other's cursors and selected nodes live.
 
-The viewer uses Yjs awareness over a tiny WebSocket server (no auth, no persistence). The dev script starts both the Next.js viewer and the WS server with `npm run viewer`. Custom port: `BRANCH_WS_PORT=7434 npm run viewer`. Custom WS URL on the client: `NEXT_PUBLIC_BRANCH_WS_URL=ws://your-host:7433`.
+The viewer uses Yjs awareness over a tiny loopback WebSocket server (no auth, no persistence). The dev script starts both the Next.js viewer and the WS server with `npm run viewer`. Custom port: `BRANCH_WS_PORT=7434 npm run viewer`. Remote presence requires a separately secured WebSocket service. Custom WS URL on the client: `NEXT_PUBLIC_BRANCH_WS_URL=ws://your-host:7433`.
 
 ## Contributing
 

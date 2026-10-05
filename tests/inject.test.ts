@@ -29,3 +29,10 @@ describe("buildInjectPrompt", () => {
     expect(prompt).toContain("end-to-end tests with 95% coverage");
   });
 });
+
+it("rejects an absent injection node", () => {
+  expect(() => buildInjectPrompt({ tree, nodeId: "missing", fact: "new fact" })).toThrow(/node.*not found/i);
+});
+it("allows injection at the root", () => {
+  expect(buildInjectPrompt({ tree, nodeId: "r", fact: "new fact" })).toContain("new fact");
+});

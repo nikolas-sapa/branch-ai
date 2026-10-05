@@ -6,12 +6,16 @@ import { TreeSchema, type Tree } from "./tree.js";
 const ROOT = join(homedir(), ".branch", "sessions");
 
 export function sessionPath(id: string): string {
+  if (typeof id !== "string" || !/^[A-Za-z0-9_-]+$/.test(id)) {
+    throw new Error("Invalid session ID: use letters, numbers, underscores, or hyphens");
+  }
   return join(ROOT, `${id}.json`);
 }
 
 export async function saveSession(tree: Tree): Promise<void> {
+  const path = sessionPath(tree.sessionId);
   await mkdir(ROOT, { recursive: true });
-  await writeFile(sessionPath(tree.sessionId), JSON.stringify(tree, null, 2), "utf8");
+  await writeFile(path, JSON.stringify(tree, null, 2), "utf8");
 }
 
 export async function loadSession(id: string): Promise<Tree> {
